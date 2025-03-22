@@ -22,11 +22,6 @@ def get_discounts(discount_service=Depends(get_discount_service)):
     return discount_service.get_all_discounts()
 
 
-@router.get("/all-active", response_model=DiscountResponse)
-def get_active_discounts(discount_service=Depends(get_discount_service)):
-    return discount_service.get_all_active_discounts()
-
-
 @router.put("/{discount_id}", response_model=DiscountResponse)
 def update_discount(
     discount_id: int,
