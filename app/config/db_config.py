@@ -1,5 +1,6 @@
-from os import environ as env
 import logging
+from os import environ as env
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -23,7 +24,7 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     use_native_hstore=False,
     pool_size=db_pool_size,
-    max_overflow=db_pool_size_overflow
+    max_overflow=db_pool_size_overflow,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -1,6 +1,7 @@
 from app.models.cart import CartItem
 from app.repositories.base import BaseRepository
 
+
 class CartItemRepository(BaseRepository):
     def __init__(self, db):
         super().__init__(db, CartItem)

@@ -1,5 +1,6 @@
-from app.repositories import DiscountRepository
 from app.models.discount import Discount
+from app.repositories import DiscountRepository
+
 
 class DiscountService:
     def __init__(self, db):

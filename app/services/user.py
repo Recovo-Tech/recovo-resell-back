@@ -1,6 +1,8 @@
-from app.repositories import UserRepository
-from app.models.user import User
 import bcrypt
+
+from app.models.user import User
+from app.repositories import UserRepository
+
 
 class UserService:
     def __init__(self, db):
@@ -14,7 +16,9 @@ class UserService:
 
     def create_user(self, username: str, email: str, password: str):
         # Encripta la contraseña
-        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
+            "utf-8"
+        )
         new_user = User(username=username, email=email, hashed_password=hashed)
         return self.repo.create(new_user)
 
@@ -24,7 +28,9 @@ class UserService:
             return None
 
         if "password" in update_data:
-            hashed = bcrypt.hashpw(update_data["password"].encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            hashed = bcrypt.hashpw(
+                update_data["password"].encode("utf-8"), bcrypt.gensalt()
+            ).decode("utf-8")
             update_data["hashed_password"] = hashed
             del update_data["password"]
 

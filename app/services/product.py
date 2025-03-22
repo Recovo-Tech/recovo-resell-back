@@ -1,5 +1,6 @@
-from app.repositories import ProductRepository
 from app.models.product import Product
+from app.repositories import ProductRepository
+
 
 class ProductService:
     def __init__(self, db):

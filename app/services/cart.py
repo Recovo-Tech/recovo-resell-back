@@ -1,5 +1,6 @@
-from app.repositories import CartRepository, CartItemRepository
 from app.models.cart import Cart, CartStatus
+from app.repositories import CartItemRepository, CartRepository
+
 
 class CartService:
     def __init__(self, db):
@@ -43,7 +44,10 @@ class CartService:
         discount_value = 0
 
         if cart.discount and cart.discount.active:
-            if cart.discount.min_purchase is None or subtotal >= cart.discount.min_purchase:
+            if (
+                cart.discount.min_purchase is None
+                or subtotal >= cart.discount.min_purchase
+            ):
                 if cart.discount.discount_type == "percentage":
                     discount_value = subtotal * (cart.discount.value / 100)
                 elif cart.discount.discount_type == "fixed":

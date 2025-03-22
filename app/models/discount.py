@@ -1,6 +1,7 @@
 # app/models/discount.py
 
-from sqlalchemy import Column, Integer, String, Float, Boolean
+from sqlalchemy import Boolean, Column, Float, Integer, String
+
 from app.config.db_config import Base
 
 
