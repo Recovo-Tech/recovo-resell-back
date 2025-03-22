@@ -9,6 +9,9 @@ class DiscountService:
     def get_all_active_discounts(self):
         return self.repo.get_active_discounts()
 
+    def get_all_discounts(self):
+        return self.repo.get_all()
+
     def get_discount_by_id(self, discount_id: int):
         return self.repo.get_by_id(discount_id)
 
@@ -27,4 +30,11 @@ class DiscountService:
         if not discount:
             return False
         self.repo.delete(discount)
+        return True
+
+    def deactivate_discount(self, discount_id: int):
+        discount = self.get_discount_by_id(discount_id)
+        if not discount:
+            return False
+        self.repo.update(discount, {"active": False})
         return True

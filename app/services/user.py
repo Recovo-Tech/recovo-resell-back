@@ -1,4 +1,5 @@
 import bcrypt
+from fastapi import HTTPException
 
 from app.models.user import User
 from app.repositories import UserRepository
@@ -15,7 +16,12 @@ class UserService:
         return self.repo.get_by_username(username)
 
     def create_user(self, username: str, email: str, password: str):
-        # Encripta la contraseña
+        existing_user = self.repo.get_by_username_or_email(username, email)
+        if existing_user:
+            raise HTTPException(
+                status_code=400, detail="Username or email already in use"
+            )
+
         hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
             "utf-8"
         )
@@ -27,7 +33,7 @@ class UserService:
         if not user:
             return None
 
-        if "password" in update_data:
+        if "password" in update_data and update_data["password"]:
             hashed = bcrypt.hashpw(
                 update_data["password"].encode("utf-8"), bcrypt.gensalt()
             ).decode("utf-8")

@@ -8,3 +8,13 @@ class UserRepository(BaseRepository):
 
     def get_by_username(self, username: str):
         return self.db.query(self.model).filter(self.model.username == username).first()
+
+    def get_by_email(self, email: str):
+        return self.db.query(self.model).filter(self.model.email == email).first()
+
+    def get_by_username_or_email(self, username: str, email: str):
+        return (
+            self.db.query(self.model)
+            .filter((self.model.username == username) | (self.model.email == email))
+            .first()
+        )

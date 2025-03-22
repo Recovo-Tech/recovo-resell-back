@@ -1,3 +1,5 @@
+from fastapi import HTTPException
+
 from app.models.cart import Cart, CartStatus
 from app.repositories import CartItemRepository, CartRepository
 
@@ -36,6 +38,10 @@ class CartService:
         return self.cart_repo.get_history_by_user(user_id)
 
     def calculate_totals(self, user_id: int):
+        """
+        Calculates the subtotal, discount value, and final total for the active cart.
+        Applies the discount (if any) based on its type and conditions.
+        """
         cart = self.get_active_cart(user_id)
         if not cart:
             return {"subtotal": 0, "discount_value": 0, "total": 0}
@@ -58,11 +64,58 @@ class CartService:
         return {"subtotal": subtotal, "discount_value": discount_value, "total": total}
 
     def finalize_cart(self, user_id: int):
+        """
+        Finalizes the active cart of the user by:
+          - Calculating totals (which applies the discount if applicable)
+          - Subtracting purchased item quantities from the product stocks
+          - Marking the cart as 'completed'
+          - Returning the finalized cart and totals summary
+        """
         cart = self.get_active_cart(user_id)
         if not cart:
             return None
 
         totals = self.calculate_totals(user_id)
-        finalized_cart = self.cart_repo.update(cart, {"status": CartStatus.completed})
 
+        for item in cart.items:
+            product = item.product
+            if product.stock < item.quantity:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient stock for product {product.name}",
+                )
+            product.stock -= item.quantity
+
+        self.cart_repo.db.commit()
+
+        finalized_cart = self.cart_repo.update(cart, {"status": CartStatus.completed})
         return {"cart": finalized_cart, "totals": totals}
+
+    def apply_discount(self, user_id: int, discount_id: int, discount_service):
+        """
+        Applies a discount to the active cart.
+        - Retrieves or creates the active cart.
+        - Validates the discount using discount_service.
+        - Checks that the cart's subtotal meets the discount's min_purchase (if defined).
+        - Updates the cart to include the discount.
+        """
+        cart = self.get_active_cart(user_id)
+        if not cart:
+            cart = self.create_cart_for_user(user_id)
+
+        discount = discount_service.get_discount_by_id(discount_id)
+        if not discount or not discount.active:
+            raise HTTPException(status_code=400, detail="Invalid or inactive discount")
+
+        totals = self.calculate_totals(user_id)
+        if (
+            discount.min_purchase is not None
+            and totals["subtotal"] < discount.min_purchase
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Cart subtotal does not meet the discount requirements",
+            )
+
+        updated_cart = self.cart_repo.update(cart, {"discount_id": discount_id})
+        return updated_cart

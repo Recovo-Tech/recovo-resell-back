@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from typing import List, Optional
+
+from pydantic import BaseModel
+
 
 class CartItemResponse(BaseModel):
     id: int
@@ -8,6 +10,7 @@ class CartItemResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
 
 class CartResponse(BaseModel):
     id: int
@@ -18,16 +21,21 @@ class CartResponse(BaseModel):
     class Config:
         orm_mode = True
 
+
 class AddCartItem(BaseModel):
-    user_id: int
     product_id: int
     quantity: int
 
+
 class RemoveCartItem(BaseModel):
-    user_id: int
     product_id: int
     quantity: int
+
 
 class CartTotalsResponse(BaseModel):
     cart: CartResponse
     totals: dict
+
+
+class ApplyDiscount(BaseModel):
+    discount_id: int
