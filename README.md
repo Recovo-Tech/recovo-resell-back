@@ -37,12 +37,13 @@ Esto iniciará los contenedores para:
 * **api** : La aplicación FastAPI.
 * **db** : PostgreSQL.
 
-La API estará disponible en [http://localhost:8000]() y la documentación interactiva (Swagger UI) en [http://localhost:8000/docs]().
+La API estará disponible en [http://localhost:8000](http://localhost:8000) y la documentación interactiva (Swagger UI) en [http://localhost:8000/docs](http://localhost:8000/docs).
+Tambien dispone de documentación en Postman descrita en el apartado siguiente
 
 
 ## Colección Postman
 
-Se proporciona una colección exportada en el archivo `postman_collection.json`. Para probar los endpoints de la API utilizando Postman, sigue estos pasos:
+Se proporciona una colección exportada en el archivo `recovo.postman_collection.json`. Para probar los endpoints de la API utilizando Postman, sigue estos pasos:
 
 1. **Crear un usuario:**
 
