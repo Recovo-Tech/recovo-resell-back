@@ -13,7 +13,6 @@ class ProductService:
         return self.repo.get_by_id(product_id)
 
     def create_product(self, product_data: dict):
-        # Se asume que product_data contiene las claves necesarias
         new_product = Product(**product_data)
         return self.repo.create(new_product)
 

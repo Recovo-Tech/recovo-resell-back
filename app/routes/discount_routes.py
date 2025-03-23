@@ -2,8 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_current_user, get_discount_service
-from app.schemas.discount import (DiscountCreate, DiscountResponse,
-                                  DiscountUpdate)
+from app.schemas.discount import DiscountCreate, DiscountResponse, DiscountUpdate
 
 router = APIRouter(prefix="/discounts", tags=["Discounts"])
 

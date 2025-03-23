@@ -11,10 +11,10 @@ services:
     ports:
       - "5432:5432"
 
-  redis:
-    image: redis:6.2-alpine
-    ports:
-      - 6379:6379
+  # redis:
+  #   image: redis:6.2-alpine
+  #   ports:
+  #     - 6379:6379
 
   api:
     stdin_open: true
@@ -22,7 +22,7 @@ services:
     build: .
     depends_on:
       - db
-      - redis
+      # - redis
     restart: always
     env_file:
       - .env

@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import (get_cart_service, get_current_user,
-                              get_discount_service)
-from app.schemas.cart import (AddCartItem, ApplyDiscount, CartResponse,
-                              CartTotalsResponse, RemoveCartItem)
+from app.dependencies import get_cart_service, get_current_user, get_discount_service
+from app.schemas.cart import (
+    AddCartItem,
+    ApplyDiscount,
+    CartResponse,
+    CartTotalsResponse,
+    RemoveCartItem,
+)
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
 

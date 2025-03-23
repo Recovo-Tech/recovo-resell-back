@@ -1,8 +1,13 @@
 # app/main.py
 from fastapi import FastAPI
 
-from app.routes import (auth_routes, cart_routes, discount_routes,
-                        product_routes, user_routes)
+from app.routes import (
+    auth_routes,
+    cart_routes,
+    discount_routes,
+    product_routes,
+    user_routes,
+)
 
 app = FastAPI(title="Online Store API")
 
