@@ -1,21 +1,75 @@
 {
 	"info": {
 		"_postman_id": "555f921d-ce49-45da-a669-cd4f4b09b326",
-		"name": "recovo",
+		"name": "Recovo",
+		"description": "## Overview\n\nWelcome to the Recovo CIMS API Postman Collection! This collection is designed to help you test and explore the API endpoints implemented as part of the backend technical test for Recovo CIMS. The API is built with FastAPI, uses PostgreSQL for data storage, and is fully dockerized to ensure a seamless local setup.\n\n### How to Use the Collection\n\n1. **Create a User:**\n    \n    Start by using the **\"create user\"** endpoint to register a new user. This step is essential as many endpoints require a valid user account.\n    \n2. **Login:**\n    \n    Next, call the **\"login\"** endpoint with the registered user's credentials. The login endpoint will authenticate the user and return a JSON Web Token (JWT).\n    \n3. **Copy the Token:**\n    \n    Once the token is generated, copy it from the login response.\n    \n4. **Set the Authorization:**\n    \n    In Postman, go to the Authorization tab of the collection (or individual requests) and select **Bearer Token** as the type. Paste the copied token in the token field. This will attach the token automatically in the `Authorization` header for all protected endpoints.\n    \n5. **Test Protected Endpoints:**\n    \n    With the token set, you can now test endpoints related to user details (get current user, update current user, delete current user), product management (create, update, retrieve, delete products), cart operations (adding/removing items, finalizing cart, applying discounts) and discount management.\n    \n\n### Additional Notes\n\n- **Local Setup:**\n    \n    Ensure that the API is running locally at `http://localhost:8000` (you can use Docker Compose to easily spin up the required containers).\n    \n- **Detailed Examples:**\n    \n    Each folder in the collection (Users, Products, Cart, Discounts, Authentication) contains example requests and expected responses to guide you through the testing process.\n    \n- **Error Handling:**\n    \n    If any request fails, refer to the error message in the response for troubleshooting. Common issues include validation errors or missing authentication.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "39053655"
 	},
 	"item": [
 		{
-			"name": "user",
+			"name": "User",
 			"item": [
 				{
 					"name": "create user",
 					"request": {
 						"method": "GET",
-						"header": []
+						"header": [],
+						"description": "Description: Register a new user in the system.  \n_Details:_ Provide a username, email, and password. Returns the created user object with an assigned ID."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "createuser",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"test2\",\r\n  \"email\": \"test2@example.com\",\r\n  \"password\": \"test2\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/users/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"users",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sun, 23 Mar 2025 15:09:34 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "56"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"username\": \"test2\",\n    \"email\": \"test2@example.com\",\n    \"id\": 73\n}"
+						}
+					]
 				},
 				{
 					"name": "login",
@@ -42,9 +96,62 @@
 								"auth",
 								"login"
 							]
-						}
+						},
+						"description": "_Description:_ Authenticate a user using their credentials.  \n_Details:_ Send a form (or JSON, depending on implementation) with username and password. On success, returns a JWT token that must be used in subsequent requests via the `Authorization` header (Bearer Token)."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"test2w\",\r\n  \"password\": \"test2\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/auth/login",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"auth",
+										"login"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sun, 23 Mar 2025 16:19:39 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "222"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NzQsInVzZXJuYW1lIjoidGVzdDJ3IiwiZW1haWwiOiJ0ZXN0MndAZXhhbXBsZS5jb20iLCJleHAiOjE3NDI3NDg1ODB9.WU8oRq5E1BfopHDneAkt-6FOdBDjzq_97s1TrTzhHj8\",\n    \"token_type\": \"bearer\"\n}"
+						}
+					]
 				},
 				{
 					"name": "get current user",
@@ -62,9 +169,53 @@
 								"users",
 								"me"
 							]
-						}
+						},
+						"description": "_Description:_ Retrieve the details of the currently authenticated user.  \n_Details:_ This endpoint uses the JWT token to identify the user and returns their profile information."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/users/me",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"users",
+										"me"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sun, 23 Mar 2025 15:36:27 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "56"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"username\": \"test2\",\n    \"email\": \"test2@example.com\",\n    \"id\": 73\n}"
+						}
+					]
 				},
 				{
 					"name": "update current user",
@@ -91,9 +242,62 @@
 								"users",
 								"me"
 							]
-						}
+						},
+						"description": "_Description:_ Update the profile details of the authenticated user.  \n_Details:_ Only fields provided in the request will be updated. For example, you can update the username without affecting the email."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"username\": \"test-update2\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/users/me",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"users",
+										"me"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sun, 23 Mar 2025 15:36:39 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "63"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"username\": \"test-update2\",\n    \"email\": \"test2@example.com\",\n    \"id\": 73\n}"
+						}
+					]
 				},
 				{
 					"name": "delete current user",
@@ -111,9 +315,53 @@
 								"users",
 								"me"
 							]
-						}
+						},
+						"description": "_Description:_ Delete the account of the currently authenticated user.  \n_Details:_ Removes the user from the system. Ensure you are authenticated before calling this endpoint."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/users/me",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"users",
+										"me"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:24:48 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "25"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"detail\": \"User deleted\"\n}"
+						}
+					]
 				}
 			]
 		},
@@ -145,9 +393,62 @@
 								"products",
 								""
 							]
-						}
+						},
+						"description": "_Description:_ Add a new product to the system.  \n_Details:_ Requires product name, description, price, and available stock. Returns the newly created product with its unique ID."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"name\": \"algodon de egipto\",\r\n  \"description\": \"algodon blanco de egipto\",\r\n  \"price\": 101,\r\n  \"stock\": 51\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/products/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"products",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:25:36 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "101"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"name\": \"algodon de egipto\",\n    \"description\": \"algodon blanco de egipto\",\n    \"price\": 101,\n    \"stock\": 51,\n    \"id\": 4\n}"
+						}
+					]
 				},
 				{
 					"name": "get all products",
@@ -165,9 +466,53 @@
 								"products",
 								""
 							]
-						}
+						},
+						"description": "_Description:_ Retrieve a list of all products.  \n_Details:_ Useful for displaying all available products to users."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/products/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"products",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sun, 23 Mar 2025 15:39:27 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "200"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "[\n    {\n        \"name\": \"algodon Egipcio\",\n        \"description\": \"algodon blanco de egipto\",\n        \"price\": 103.5,\n        \"stock\": 50,\n        \"id\": 2\n    },\n    {\n        \"name\": \"lana de alpaca\",\n        \"description\": \"lana de la mejor calidad\",\n        \"price\": 100,\n        \"stock\": 43,\n        \"id\": 1\n    }\n]"
+						}
+					]
 				},
 				{
 					"name": "get product by id",
@@ -185,9 +530,53 @@
 								"products",
 								"2"
 							]
-						}
+						},
+						"description": "_Description:_ Retrieve detailed information about a specific product.  \n_Details:_ Provide the product ID as a parameter."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/products/2",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"products",
+										"2"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sun, 23 Mar 2025 15:10:22 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "99"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"name\": \"algodon Egipcio\",\n    \"description\": \"algodon blanco de egipto\",\n    \"price\": 103.5,\n    \"stock\": 50,\n    \"id\": 2\n}"
+						}
+					]
 				},
 				{
 					"name": "update product",
@@ -214,9 +603,62 @@
 								"products",
 								"2"
 							]
-						}
+						},
+						"description": "_Description:_ Modify the details of an existing product.  \n_Details:_ Allows updates to fields such as name, description, price, and stock."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"name\": \"algodon Egipcio\",\r\n    \"description\": \"algodon blanco de egipto\",\r\n    \"price\": 103.5,\r\n    \"stock\": 50\r\n   \r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/products/2",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"products",
+										"2"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:26:01 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "99"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"name\": \"algodon Egipcio\",\n    \"description\": \"algodon blanco de egipto\",\n    \"price\": 103.5,\n    \"stock\": 50,\n    \"id\": 2\n}"
+						}
+					]
 				},
 				{
 					"name": "delete product",
@@ -234,9 +676,53 @@
 								"products",
 								"3"
 							]
-						}
+						},
+						"description": "_Description:_ Remove a product from the system.  \n_Details:_ Deletes the product identified by its ID."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/products/4",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"products",
+										"4"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:26:18 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "28"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"detail\": \"Product deleted\"\n}"
+						}
+					]
 				}
 			]
 		},
@@ -268,9 +754,62 @@
 								"cart",
 								"items"
 							]
-						}
+						},
+						"description": "_Description:_ Add a product to the user's active cart.  \n_Details:_ If no active cart exists, one is created automatically. If the product already exists in the cart, its quantity is increased."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"product_id\": 1,\r\n  \"quantity\": 3\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/cart/items",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"cart",
+										"items"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:26:37 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "88"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": 35,\n    \"user_id\": 40,\n    \"status\": \"active\",\n    \"items\": [\n        {\n            \"id\": 37,\n            \"product_id\": 1,\n            \"quantity\": 3\n        }\n    ]\n}"
+						}
+					]
 				},
 				{
 					"name": "remove item from cart",
@@ -297,9 +836,62 @@
 								"cart",
 								"items"
 							]
-						}
+						},
+						"description": "_Description:_ Remove a specified quantity of a product from the active cart.  \n_Details:_ If the removal quantity equals or exceeds the current quantity, the product is removed entirely from the cart"
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"product_id\": 1,\r\n  \"quantity\": 1\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/cart/items",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"cart",
+										"items"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:39:17 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "88"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": 35,\n    \"user_id\": 40,\n    \"status\": \"active\",\n    \"items\": [\n        {\n            \"id\": 37,\n            \"product_id\": 1,\n            \"quantity\": 2\n        }\n    ]\n}"
+						}
+					]
 				},
 				{
 					"name": "empty cart",
@@ -317,9 +909,53 @@
 								"cart",
 								"empty"
 							]
-						}
+						},
+						"description": "_Description:_ Remove all items from the active cart.  \n_Details:_ Clears the cart so that no items remain."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/cart/empty",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"cart",
+										"empty"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:26:31 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "51"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": 35,\n    \"user_id\": 40,\n    \"status\": \"active\",\n    \"items\": []\n}"
+						}
+					]
 				},
 				{
 					"name": "get active cart",
@@ -337,9 +973,53 @@
 								"cart",
 								""
 							]
-						}
+						},
+						"description": "_Description:_ Retrieve the current active cart for the authenticated user.  \n_Details:_ Returns the cart along with its items and any applied discount."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/cart/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"cart",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sun, 23 Mar 2025 16:20:56 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "88"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": 69,\n    \"user_id\": 74,\n    \"status\": \"active\",\n    \"items\": [\n        {\n            \"id\": 70,\n            \"product_id\": 1,\n            \"quantity\": 2\n        }\n    ]\n}"
+						}
+					]
 				},
 				{
 					"name": "finalize cart",
@@ -357,9 +1037,53 @@
 								"cart",
 								"finalize"
 							]
-						}
+						},
+						"description": "_Description:_ Complete the purchase process for the active cart.  \n_Details:_ Calculates the subtotal, applies any discount, subtracts the purchased quantities from product stocks, and marks the cart as completed. Returns a summary of totals and the finalized cart."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/cart/finalize",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"cart",
+										"finalize"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:39:32 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "164"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"cart\": {\n        \"id\": 35,\n        \"user_id\": 40,\n        \"status\": \"completed\",\n        \"items\": [\n            {\n                \"id\": 37,\n                \"product_id\": 1,\n                \"quantity\": 2\n            }\n        ]\n    },\n    \"totals\": {\n        \"subtotal\": 200,\n        \"discount_value\": 80,\n        \"total\": 120\n    }\n}"
+						}
+					]
 				},
 				{
 					"name": "apply-dicount",
@@ -386,9 +1110,62 @@
 								"cart",
 								"apply-discount"
 							]
-						}
+						},
+						"description": "_Description:_ Apply a discount to the active cart.  \n_Details:_ Provide the discount ID to be applied. The endpoint validates that the discount is active and meets any minimum purchase requirements, then associates it with the cart."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"discount_id\": 2\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/cart/apply-discount",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"cart",
+										"apply-discount"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:39:27 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "88"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": 35,\n    \"user_id\": 40,\n    \"status\": \"active\",\n    \"items\": [\n        {\n            \"id\": 37,\n            \"product_id\": 1,\n            \"quantity\": 2\n        }\n    ]\n}"
+						}
+					]
 				}
 			]
 		},
@@ -420,9 +1197,62 @@
 								"discounts",
 								""
 							]
-						}
+						},
+						"description": "_Description:_ Create a new discount offer.  \n_Details:_ Requires a name, description, discount type (either `\"percentage\"` or `\"fixed\"`), discount value, and an optional minimum purchase requirement. Returns the created discount."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"name\": \"string\",\r\n  \"description\": \"string\",\r\n  \"discount_type\": \"percentage\",\r\n  \"value\": 50,\r\n  \"min_purchase\": 0,\r\n  \"active\": true\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/discounts/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"discounts",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:02:29 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "122"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"name\": \"string\",\n    \"description\": \"string\",\n    \"discount_type\": \"percentage\",\n    \"value\": 50,\n    \"min_purchase\": 0,\n    \"id\": 2,\n    \"active\": true\n}"
+						}
+					]
 				},
 				{
 					"name": "get all",
@@ -440,9 +1270,53 @@
 								"discounts",
 								""
 							]
-						}
+						},
+						"description": "_Description:_ Retrieve all active discounts.  \n_Details:_ Useful for displaying available promotions."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/discounts/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"discounts",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:39:46 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "247"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "[\n    {\n        \"name\": \"string\",\n        \"description\": \"string\",\n        \"discount_type\": \"percentage\",\n        \"value\": 0,\n        \"min_purchase\": 0,\n        \"id\": 1,\n        \"active\": false\n    },\n    {\n        \"name\": \"string\",\n        \"description\": \"string\",\n        \"discount_type\": \"percentage\",\n        \"value\": 40,\n        \"min_purchase\": 0,\n        \"id\": 2,\n        \"active\": true\n    }\n]"
+						}
+					]
 				},
 				{
 					"name": "update discount",
@@ -469,17 +1343,114 @@
 								"discounts",
 								"2"
 							]
-						}
+						},
+						"description": "_Description:_ Modify an existing discount.  \n_Details:_ Allows updates to any field, including type, value, and active status."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"name\": \"string\",\r\n  \"description\": \"string\",\r\n  \"discount_type\": \"percentage\",\r\n  \"value\": 40,\r\n  \"min_purchase\": 0,\r\n  \"active\": true\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/discounts/2",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"discounts",
+										"2"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:38:59 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "122"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"name\": \"string\",\n    \"description\": \"string\",\n    \"discount_type\": \"percentage\",\n    \"value\": 40,\n    \"min_purchase\": 0,\n    \"id\": 2,\n    \"active\": true\n}"
+						}
+					]
 				},
 				{
 					"name": "deactivate discount",
 					"request": {
 						"method": "GET",
-						"header": []
+						"header": [],
+						"description": "Description:Deactivate a discount instead of deleting it.  \n_Details:_ Updates the discount's `active` status to `false` to preserve historical data and avoid foreign key issues"
 					},
-					"response": []
+					"response": [
+						{
+							"name": "example",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:8000/discounts/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"discounts",
+										"1"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "date",
+									"value": "Sat, 22 Mar 2025 14:28:18 GMT"
+								},
+								{
+									"key": "server",
+									"value": "uvicorn"
+								},
+								{
+									"key": "content-length",
+									"value": "33"
+								},
+								{
+									"key": "content-type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"detail\": \"Discount deactivated\"\n}"
+						}
+					]
 				}
 			]
 		}
@@ -489,7 +1460,7 @@
 		"bearer": [
 			{
 				"key": "token",
-				"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDAsInVzZXJuYW1lIjoidGVzdDEiLCJlbWFpbCI6InRlc3QxQGV4YW1wbGUuY29tIiwiZXhwIjoxNzQyNjU1MzE3fQ._bzHpTs3yyG_knHqL0_zKf49srHT6BBpAgGMCJUIaCU",
+				"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NzQsInVzZXJuYW1lIjoidGVzdDJ3IiwiZW1haWwiOiJ0ZXN0MndAZXhhbXBsZS5jb20iLCJleHAiOjE3NDI3NDg1ODB9.WU8oRq5E1BfopHDneAkt-6FOdBDjzq_97s1TrTzhHj8",
 				"type": "string"
 			}
 		]
