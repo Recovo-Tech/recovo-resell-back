@@ -37,8 +37,7 @@ Esto iniciará los contenedores para:
 * **api** : La aplicación FastAPI.
 * **db** : PostgreSQL.
 
-La API estará disponible en [http://localhost:8000](http://localhost:8000) y la documentación interactiva (Swagger UI) en [http://localhost:8000/docs](http://localhost:8000/docs).
-Tambien dispone de documentación en Postman descrita en el apartado siguiente
+La API estará disponible en [http://localhost:8000](http://localhost:8000) y la documentación en Postman descrita en el apartado siguiente
 
 
 ## Colección Postman

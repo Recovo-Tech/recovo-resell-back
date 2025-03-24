@@ -9,7 +9,7 @@ from app.routes import (
     user_routes,
 )
 
-app = FastAPI(title="Recovo Online Store API")
+app = FastAPI(title="Recovo Online Store API", docs_url=None)
 
 app.include_router(user_routes.router)
 app.include_router(product_routes.router)
