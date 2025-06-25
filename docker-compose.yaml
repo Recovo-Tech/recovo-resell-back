@@ -29,7 +29,6 @@ services:
     # The env_file is still here for local development convenience.
     # In production, the pipeline injects environment variables directly.
     env_file:
-    
       - .env
 
 # This top-level key declares the named volume for persistent storage.

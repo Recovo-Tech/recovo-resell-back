@@ -28,7 +28,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ secrets.DOCKER_USERNAME }}/your-fastapi-app
+          images: ${{ secrets.DOCKER_USERNAME }}/recovo-resell-api
           tags: |
             type=sha,prefix=,format=short
 
@@ -55,18 +55,38 @@ jobs:
           username: ${{ secrets.HETZNER_SSH_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           script: |
+            # Set all environment variables needed by your app
+            # These are pulled from the correct GitHub Environment (stage or prod)
             export DOCKER_IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/your-fastapi-app
+            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-api
+
+            # --- Application Environment Variables ---
             export POSTGRES_DB=${{ secrets.POSTGRES_DB }}
             export POSTGRES_USER=${{ secrets.POSTGRES_USER }}
             export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            
+            export SECRET_KEY=${{ secrets.SECRET_KEY }}
+            export ALGORITHM=${{ secrets.ALGORITHM }}
 
-            cd /root/my-app
+            export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            export S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
 
-            git pull origin stage # Changed from staging
+            
+            # For non-secret variables stored in GitHub, use vars.
+            export AWS_REGION=${{ vars.AWS_REGION }}
+            export ACCESS_TOKEN_EXPIRE_MINUTES=${{ vars.ACCESS_TOKEN_EXPIRE_MINUTES }}
+            export DATABASE_POOL_SIZE_OVERFLOW=${{ vars.DATABASE_POOL_SIZE_OVERFLOW }}
+            export DATABASE_HOSTNAME=db # This is hardcoded as it's an internal docker hostname
+            export DATABASE_PORT=5432
 
+            # Navigate to your app directory
+            cd /root/app
+
+            # Pull latest code and restart services
+            git pull origin stage # Change branch name accordingly
             docker-compose pull
-            docker-compose up -d
+            docker-compose up -d --force-recreate
 
   deploy-prod: # Changed from deploy-production
     needs: build-and-push
@@ -84,7 +104,7 @@ jobs:
           key: ${{ secrets.HETZNER_SSH_KEY }}
           script: |
             export DOCKER_IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/your-fastapi-app
+            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-resell-api
             export POSTGRES_DB=${{ secrets.POSTGRES_DB }}
             export POSTGRES_USER=${{ secrets.POSTGRES_USER }}
             export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
