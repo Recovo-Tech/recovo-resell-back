@@ -1,35 +1,36 @@
-version: '3.1'
-
+# No version needed for modern Docker Compose
 services:
   db:
     image: postgres:15
-    restart: always
+    restart: unless-stopped
+    volumes:
+      # This securely persists your database data inside a Docker managed volume
+      - postgres_data:/var/lib/postgresql/data/
     environment:
-      POSTGRES_DB: recovo
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: someinsecurepw
-    ports:
-      - "5432:5432"
-
-  # redis:
-  #   image: redis:6.2-alpine
-  #   ports:
-  #     - 6379:6379
+      # These variables will be injected by the GitHub Actions pipeline on the server
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    # The public port has been REMOVED for security.
+    # The 'api' service will connect to 'db' over the internal Docker network.
 
   api:
-    stdin_open: true
-    tty: true
+    # This tells Docker Compose to pull the specific image built by our pipeline.
+    # The ":-latest" is a fallback for local use if the variables aren't set.
+    image: ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG:-latest}
+    # The 'build' context is used as a fallback for local development.
     build: .
+    restart: unless-stopped
     depends_on:
       - db
-      # - redis
-    restart: always
+    ports:
+      # This exposes your API on port 8000 to the outside world
+      - "8000:8000"
+    # The env_file is still here for local development convenience.
+    # In production, the pipeline injects environment variables directly.
     env_file:
       - .env
-    volumes:
-      - ./app:/code/app
-    ports:
-      - "8000:8000"
 
+# This top-level key declares the named volume for persistent storage.
 volumes:
   postgres_data:

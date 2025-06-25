@@ -1453,6 +1453,303 @@
 					]
 				}
 			]
+		},
+		{
+			"name": "Second Hand Marketplace",
+			"item": [
+				{
+					"name": "Verify Product",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sku\": \"ABC123\",\n  \"barcode\": \"1234567890123\",\n  \"shop_domain\": \"your-shop.myshopify.com\",\n  \"access_token\": \"your-access-token\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/second-hand/verify-product",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"verify-product"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Product Images",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"src": "<path-to-image1.jpg>"
+								},
+								{
+									"key": "files",
+									"type": "file",
+									"src": "<path-to-image2.jpg>"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://localhost:8000/second-hand/upload-images",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"upload-images"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Second Hand Product",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer <token>"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"iPhone 13 Pro - Like New\",\n  \"description\": \"Barely used iPhone 13 Pro in excellent condition\",\n  \"price\": 899.99,\n  \"condition\": \"like_new\",\n  \"original_sku\": \"IPHONE13PRO-128-GOLD\",\n  \"barcode\": \"1234567890123\",\n  \"image_urls\": [\"https://your-bucket.s3.eu-west-1.amazonaws.com/second_hand_products/uuid1.jpg\"]\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/second-hand/products?shop_domain=your-shop.myshopify.com&shopify_access_token=your-access-token",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"products"
+							],
+							"query": [
+								{
+									"key": "shop_domain",
+									"value": "your-shop.myshopify.com"
+								},
+								{
+									"key": "shopify_access_token",
+									"value": "your-access-token"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Second Hand Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer <token>"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8000/second-hand/products/my",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"products",
+								"my"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Approved Second Hand Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/second-hand/products",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Second Hand Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/second-hand/products/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"products",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Second Hand Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer <token>"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Name\",\n  \"price\": 799.99\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/second-hand/products/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"products",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Second Hand Product",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer <token>"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8000/second-hand/products/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"products",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Second Hand Products",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"iPhone\",\n  \"min_price\": 500,\n  \"max_price\": 1000\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/second-hand/products/search",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"products",
+								"search"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Approve Second Hand Product (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer <admin-token>"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8000/second-hand/admin/products/1/approve",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"second-hand",
+								"admin",
+								"products",
+								"1",
+								"approve"
+							]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"auth": {
