@@ -46,7 +46,7 @@ jobs:
     if: github.ref == 'refs/heads/stage' # Changed from staging
     environment:
       name: stage # Changed from staging
-      url: http://${{ secrets.HETZNER_SSH_HOST }}
+      # url: http://${{ secrets.HETZNER_SSH_HOST }}
     steps:
       - name: Deploy to Hetzner Stage
         uses: appleboy/ssh-action@master
@@ -94,7 +94,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment:
       name: prod # Changed from production
-      url: http://${{ secrets.HETZNER_SSH_HOST }}
+      # url: http://${{ secrets.HETZNER_SSH_HOST }}
     steps:
       - name: Deploy to Hetzner Production
         uses: appleboy/ssh-action@master
