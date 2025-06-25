@@ -1,36 +1,34 @@
-# No version needed for modern Docker Compose
+
 services:
   db:
     image: postgres:15
     restart: unless-stopped
     volumes:
-      # This securely persists your database data inside a Docker managed volume
       - postgres_data:/var/lib/postgresql/data/
     environment:
-      # These variables will be injected by the GitHub Actions pipeline on the server
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    # The public port has been REMOVED for security.
-    # The 'api' service will connect to 'db' over the internal Docker network.
 
   api:
-    # This tells Docker Compose to pull the specific image built by our pipeline.
-    # The ":-latest" is a fallback for local use if the variables aren't set.
     image: ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG:-latest}
-    # The 'build' context is used as a fallback for local development.
     build: .
     restart: unless-stopped
     depends_on:
       - db
     ports:
-      # This exposes your API on port 8000 to the outside world
       - "8000:8000"
-    # The env_file is still here for local development convenience.
-    # In production, the pipeline injects environment variables directly.
-    env_file:
-      - .env
-
-# This top-level key declares the named volume for persistent storage.
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - DATABASE_HOSTNAME=db
+      - DATABASE_PORT=5432
 volumes:
   postgres_data:
