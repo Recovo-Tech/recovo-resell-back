@@ -7,6 +7,8 @@ from app.routes import (
     discount_routes,
     product_routes,
     user_routes,
+    second_hand_routes,
+    shopify_webhook_routes,
 )
 
 app = FastAPI(title="Recovo Online Store API", docs_url=None)
@@ -16,3 +18,5 @@ app.include_router(product_routes.router)
 app.include_router(cart_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(discount_routes.router)
+app.include_router(second_hand_routes.router)
+app.include_router(shopify_webhook_routes.router)

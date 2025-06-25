@@ -13,3 +13,4 @@ class User(Base):
     hashed_password = Column(String(200), nullable=False)
 
     carts = relationship("Cart", back_populates="user")
+    second_hand_products = relationship("SecondHandProduct", back_populates="seller")

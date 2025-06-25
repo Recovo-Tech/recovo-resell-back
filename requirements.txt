@@ -13,3 +13,12 @@ pytest-asyncio
 black
 isort
 pydantic[email]
+pydantic-settings
+httpx
+shopifyapi
+pillow
+aiofiles
+boto3
+Pillow
+watchfiles
+python-multipart

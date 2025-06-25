@@ -9,7 +9,7 @@ class CartItemResponse(BaseModel):
     quantity: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CartResponse(BaseModel):
@@ -19,7 +19,7 @@ class CartResponse(BaseModel):
     items: List[CartItemResponse] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class AddCartItem(BaseModel):
