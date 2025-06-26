@@ -85,8 +85,8 @@ jobs:
 
             # Pull latest code and restart services
             git pull origin stage # Change branch name accordingly
-            docker-compose pull
-            docker-compose up -d --force-recreate
+            docker compose pull
+            docker compose up -d --force-recreate
 
   deploy-prod: # Changed from deploy-production
     needs: build-and-push
@@ -133,5 +133,5 @@ jobs:
 
             # Pull latest code and restart services
             git pull origin stage # Change branch name accordingly
-            docker-compose pull
-            docker-compose up -d --force-recreate
+            docker compose pull
+            docker compose up -d --force-recreate
