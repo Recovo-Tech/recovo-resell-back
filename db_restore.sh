@@ -37,8 +37,8 @@ fi
 echo ""
 echo "--- Starting Production Restore ---"
 
-# Navigate to the app directory where docker-compose.yml is located
-# This ensures docker-compose commands work without the -p flag
+# Navigate to the app directory where docker compose.yml is located
+# This ensures docker compose commands work without the -p flag
 cd /root/app # Use the path for your production app
 
 echo "1. Downloading backup from S3..."
@@ -52,11 +52,11 @@ echo "2. Uncompressing backup file..."
 gunzip "$BACKUP_FILENAME"
 
 echo "3. Dropping and recreating the production database..."
-docker-compose exec -T db dropdb -U "$DB_USER" --if-exists "$DB_NAME"
-docker-compose exec -T db createdb -U "$DB_USER" "$DB_NAME"
+docker compose exec -T db dropdb -U "$DB_USER" --if-exists "$DB_NAME"
+docker compose exec -T db createdb -U "$DB_USER" "$DB_NAME"
 
 echo "4. Importing data... (This may take a while)"
-cat "$SQL_FILENAME" | docker-compose exec -T db psql -U "$DB_USER" -d "$DB_NAME"
+cat "$SQL_FILENAME" | docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME"
 
 echo "5. Cleaning up local files..."
 rm "$SQL_FILENAME"
