@@ -72,6 +72,9 @@ jobs:
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
 
+            export SHOPIFY_APP_URL=${{ secrets.SHOPIFY_APP_URL }}
+            export SHOPIFY_ACCESS_TOKEN=${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+
             
             # For non-secret variables stored in GitHub, use vars.
             export AWS_REGION=${{ vars.AWS_REGION }}
@@ -120,7 +123,10 @@ jobs:
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
 
-            
+            export SHOPIFY_APP_URL=${{ secrets.SHOPIFY_APP_URL }}
+            export SHOPIFY_ACCESS_TOKEN=${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+
+
             # For non-secret variables stored in GitHub, use vars.
             export AWS_REGION=${{ vars.AWS_REGION }}
             export ACCESS_TOKEN_EXPIRE_MINUTES=${{ vars.ACCESS_TOKEN_EXPIRE_MINUTES }}

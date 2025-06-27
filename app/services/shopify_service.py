@@ -8,9 +8,9 @@ from app.config.shopify_config import shopify_settings
 class ShopifyGraphQLClient:
     """Shopify GraphQL API client for product verification and management"""
 
-    def __init__(self, shop_domain: str, access_token: str):
+    def __init__(self, shop_domain: str, access_token: Optional[str] = None):
         self.shop_domain = shop_domain
-        self.access_token = access_token
+        self.access_token = access_token or shopify_settings.shopify_access_token
         self.api_version = shopify_settings.shopify_api_version
         self.base_url = (
             f"https://{shop_domain}/admin/api/{self.api_version}/graphql.json"
@@ -20,6 +20,10 @@ class ShopifyGraphQLClient:
         self, query: str, variables: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute GraphQL query against Shopify API"""
+        print(f"DEBUG: Attempting to connect to: {self.base_url}")
+        print(f"DEBUG: Shop domain: {self.shop_domain}")
+        print(f"DEBUG: Access token: {self.access_token[:10]}..." if self.access_token else "DEBUG: No access token")
+        
         headers = {
             "Content-Type": "application/json",
             "X-Shopify-Access-Token": self.access_token,
@@ -173,6 +177,10 @@ class ShopifyProductVerificationService:
         try:
             product = None
             verification_method = None
+            
+            print(f"DEBUG: Starting verification with SKU: {sku}, Barcode: {barcode}")
+            print(f"DEBUG: Client shop_domain: {self.client.shop_domain}")
+            print(f"DEBUG: Client access_token: {self.client.access_token[:10] if self.client.access_token else 'None'}...")
 
             # Try to verify by SKU first
             if sku:

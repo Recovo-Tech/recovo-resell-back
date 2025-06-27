@@ -18,6 +18,7 @@ from app.schemas.second_hand_product import (
     ProductSearchFilters,
 )
 from app.dependencies import get_current_user  # Assuming you have authentication
+from app.config.shopify_config import shopify_settings
 
 
 router = APIRouter(prefix="/second-hand", tags=["Second Hand Products"])
@@ -27,9 +28,11 @@ router = APIRouter(prefix="/second-hand", tags=["Second Hand Products"])
 async def verify_product(
     verification_request: ProductVerificationRequest, db: Session = Depends(get_db)
 ):
-    """Verify if a product with given SKU/barcode exists in the Shopify store"""
+    """Verify if a product with given SKU/barcode exists in the Shopify store (single store only)"""
+    # Get Shopify config from environment
+    shopify_config = shopify_settings
     verification_service = ShopifyProductVerificationService(
-        verification_request.shop_domain, verification_request.access_token
+        shopify_config.shopify_app_url, shopify_config.shopify_access_token
     )
 
     result = await verification_service.verify_product_eligibility(
@@ -195,11 +198,11 @@ async def approve_product(
     current_user: User = Depends(get_current_user),  # Add admin check here
     db: Session = Depends(get_db),
 ):
-    """Approve a second-hand product for sale (admin only)"""
+    """Approve a second-hand product for sale and publish to Shopify (admin only)"""
     # TODO: Add admin role check
     service = SecondHandProductService(db)
 
-    product = service.approve_product(product_id)
+    product = await service.approve_product(product_id)
 
     if not product:
         raise HTTPException(

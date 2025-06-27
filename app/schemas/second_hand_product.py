@@ -66,8 +66,6 @@ class SecondHandProductList(BaseModel):
 class ProductVerificationRequest(BaseModel):
     sku: Optional[str] = None
     barcode: Optional[str] = None
-    shop_domain: str
-    access_token: str
 
 
 class ProductVerificationResponse(BaseModel):
