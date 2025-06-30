@@ -58,7 +58,7 @@ jobs:
             # Set all environment variables needed by your app
             # These are pulled from the correct GitHub Environment (stage or prod)
             export DOCKER_IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-api
+            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-resell-api
 
             # --- Application Environment Variables ---
             export POSTGRES_DB=${{ secrets.POSTGRES_DB }}
@@ -109,7 +109,7 @@ jobs:
             # Set all environment variables needed by your app
             # These are pulled from the correct GitHub Environment (stage or prod)
             export DOCKER_IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-api
+            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-resell-api
 
             # --- Application Environment Variables ---
             export POSTGRES_DB=${{ secrets.POSTGRES_DB }}
