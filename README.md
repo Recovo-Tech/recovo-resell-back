@@ -127,10 +127,19 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 {
   "is_verified": true,
   "product_info": {
-    "id": "gid://shopify/Product/123456789",
+    "shopify_id": "gid://shopify/Product/123456789",
     "title": "iPhone 13 Pro",
-    "sku": "ABC123",
-    "barcode": "1234567890"
+    "handle": "iphone-13-pro",
+    "first_image": "https://cdn.shopify.com/s/files/1/0000/0000/products/iphone13pro.jpg",
+    "variants": [
+      {
+        "id": "gid://shopify/ProductVariant/987654321",
+        "sku": "ABC123",
+        "barcode": "1234567890",
+        "title": "iPhone 13 Pro - 128GB Gold",
+        "price": "999.00"
+      }
+    ]
   },
   "verification_method": "sku",
   "error": null
@@ -205,14 +214,13 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### Second-Hand Marketplace
 
 - `POST /second-hand/verify-product` — Verify product by SKU/barcode
-- `POST /second-hand/products` — Create new second-hand product (auth required)
+- `POST /second-hand/products` — Create new second-hand product with image uploads (auth required)
 - `GET /second-hand/products` — Get all approved second-hand products
 - `GET /second-hand/products/my` — Get current user's second-hand products (auth required)
 - `GET /second-hand/products/{id}` — Get a specific second-hand product
 - `PUT /second-hand/products/{id}` — Update a second-hand product (owner only, auth required)
 - `DELETE /second-hand/products/{id}` — Delete a second-hand product (owner only, auth required)
 - `POST /second-hand/products/search` — Search second-hand products with filters
-- `POST /second-hand/upload-images` — Upload product images (auth required)
 - `POST /second-hand/admin/products/{id}/approve` — Approve a second-hand product for sale (admin only)
 
 ### Shopify Webhooks
@@ -244,49 +252,36 @@ response = requests.post(
 )
 ```
 
-### 2. Upload Product Images
+### 2. Create Second-Hand Product with Images
 
-Upload images for your second-hand product:
+Create a new second-hand product listing with image uploads in a single request:
 
 ```python
+# Prepare form data
+data = {
+    "name": "iPhone 13 Pro - Like New",
+    "description": "Barely used iPhone 13 Pro in excellent condition",
+    "price": "899.99",
+    "condition": "like_new",
+    "original_sku": "IPHONE13PRO-128-GOLD",
+    "barcode": "1234567890123"
+}
+
+# Prepare files
 files = [
-    ('files', open('product1.jpg', 'rb')),
-    ('files', open('product2.jpg', 'rb'))
+    ('files', ('product1.jpg', open('product1.jpg', 'rb'), 'image/jpeg')),
+    ('files', ('product2.jpg', open('product2.jpg', 'rb'), 'image/jpeg'))
 ]
 
 response = requests.post(
-    "http://localhost:8000/second-hand/upload-images",
+    "http://localhost:8000/second-hand/products",
+    data=data,
     files=files,
     headers={"Authorization": "Bearer your-jwt-token"}
 )
-image_urls = response.json()["image_urls"]
 ```
 
-### 3. Create Second-Hand Product
-
-Create a new second-hand product listing:
-
-```python
-product_data = {
-    "name": "iPhone 13 Pro - Like New",
-    "description": "Barely used iPhone 13 Pro in excellent condition",
-    "price": 899.99,
-    "condition": "like_new",
-    "original_sku": "IPHONE13PRO-128-GOLD",
-    "barcode": "1234567890123",
-    "image_urls": image_urls
-}
-
-response = requests.post(
-    "http://localhost:8000/second-hand/products",
-    json=product_data,
-    params={
-        "shop_domain": "your-shop.myshopify.com",
-        "shopify_access_token": "your-access-token"
-    },
-    headers={"Authorization": "Bearer your-jwt-token"}
-)
-```
+Note: Shopify credentials (shop_domain and access_token) are configured as environment variables, not passed in the request.
 
 ## Shopify App Setup
 

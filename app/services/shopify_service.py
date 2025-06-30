@@ -56,6 +56,15 @@ class ShopifyGraphQLClient:
                         title
                         handle
                         status
+                        images(first: 1) {
+                            edges {
+                                node {
+                                    id
+                                    url
+                                    altText
+                                }
+                            }
+                        }
                         variants(first: 10) {
                             edges {
                                 node {
@@ -92,6 +101,15 @@ class ShopifyGraphQLClient:
                         title
                         handle
                         status
+                        images(first: 1) {
+                            edges {
+                                node {
+                                    id
+                                    url
+                                    altText
+                                }
+                            }
+                        }
                         variants(first: 10) {
                             edges {
                                 node {
@@ -216,6 +234,10 @@ class ShopifyProductVerificationService:
                     "shopify_id": product["id"],
                     "title": product["title"],
                     "handle": product["handle"],
+                    "first_image": (
+                        product.get("images", {}).get("edges", [{}])[0].get("node", {}).get("url")
+                        if product.get("images", {}).get("edges") else None
+                    ),
                     "variants": [
                         {
                             "id": variant["node"]["id"],

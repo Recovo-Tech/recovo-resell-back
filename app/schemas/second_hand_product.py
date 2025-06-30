@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
+import uuid
 
 
 class SecondHandProductImageBase(BaseModel):
@@ -44,7 +45,7 @@ class SecondHandProductUpdate(BaseModel):
 
 class SecondHandProduct(SecondHandProductBase):
     id: int
-    seller_id: int
+    seller_id: uuid.UUID
     is_verified: bool
     is_approved: bool
     shopify_product_id: Optional[str]

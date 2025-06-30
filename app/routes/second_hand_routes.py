@@ -1,6 +1,6 @@
 # app/routes/second_hand_routes.py
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
@@ -42,46 +42,59 @@ async def verify_product(
     return ProductVerificationResponse(**result)
 
 
-@router.post("/upload-images")
-async def upload_product_images(
-    files: List[UploadFile] = File(...), current_user: User = Depends(get_current_user)
-):
-    """Upload product images"""
-    upload_service = FileUploadService()
-
-    try:
-        image_paths = await upload_service.upload_multiple_images(files)
-        return {"success": True, "image_urls": image_paths, "count": len(image_paths)}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error uploading images: {str(e)}",
-        )
-
-
 @router.post("/products", response_model=SecondHandProduct)
 async def create_second_hand_product(
-    product_data: SecondHandProductCreate,
-    shop_domain: str,
-    shopify_access_token: str,
+    name: str = Form(...),
+    description: str = Form(...),
+    price: float = Form(...),
+    condition: str = Form(...),
+    original_sku: str = Form(...),
+    barcode: str = Form(None),
+    files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create a new second-hand product listing"""
+    """Create a new second-hand product listing with image uploads in one request"""
     service = SecondHandProductService(db)
+    upload_service = FileUploadService()
 
+    # Get Shopify config from environment
+    shopify_config = shopify_settings
+
+    # Validate condition
+    valid_conditions = ["new", "like_new", "good", "fair", "poor"]
+    if condition not in valid_conditions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid condition. Must be one of: {', '.join(valid_conditions)}"
+        )
+
+    # Step 1: Verify the product exists in Shopify first
+    verification_service = ShopifyProductVerificationService(
+        shopify_config.shopify_app_url, shopify_config.shopify_access_token
+    )
+
+    verification_result = await verification_service.verify_product_eligibility(
+        sku=original_sku, barcode=barcode
+    )
+
+    if not verification_result["is_verified"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Product verification failed: {verification_result.get('error', 'Product not found in Shopify')}"
+        )
+
+    # Step 2: Create the product in the database
     result = await service.create_second_hand_product(
         user_id=current_user.id,
-        name=product_data.name,
-        description=product_data.description,
-        price=product_data.price,
-        condition=product_data.condition,
-        original_sku=product_data.original_sku,
-        barcode=product_data.barcode,
-        shop_domain=shop_domain,
-        shopify_access_token=shopify_access_token,
+        name=name,
+        description=description,
+        price=price,
+        condition=condition,
+        original_sku=original_sku,
+        barcode=barcode,
+        shop_domain=shopify_config.shopify_app_url,
+        shopify_access_token=shopify_config.shopify_access_token,
     )
 
     if not result["success"]:
@@ -89,12 +102,50 @@ async def create_second_hand_product(
             status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"]
         )
 
-    # Add images if provided
-    if product_data.image_urls:
-        service.add_product_images(result["product"].id, product_data.image_urls)
-        db.refresh(result["product"])
+    created_product = result["product"]
 
-    return result["product"]
+    # Step 3: Upload user-submitted images
+    user_image_urls = []
+    if files and files[0].filename:  # Check if files were actually uploaded
+        try:
+            user_image_urls = await upload_service.upload_multiple_images(
+                files, 
+                user_id=str(current_user.id), 
+                shopify_url=shopify_config.shopify_app_url
+            )
+        except HTTPException:
+            # If image upload fails, we should clean up the created product
+            service.delete_product(created_product.id, current_user.id)
+            raise
+        except Exception as e:
+            # If image upload fails, we should clean up the created product
+            service.delete_product(created_product.id, current_user.id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error uploading images: {str(e)}",
+            )
+
+    # Step 4: Update the product with all image URLs (Shopify + user uploaded)
+    all_image_urls = []
+    
+    # Add Shopify image first (if available from verification)
+    shopify_image_url = None
+    product_info = verification_result.get("product_info")
+    if product_info:
+        # Try common keys for image URL
+        shopify_image_url = product_info.get("image_url") or product_info.get("first_image")
+    if shopify_image_url:
+        all_image_urls.append(shopify_image_url)
+    
+    # Add user uploaded images
+    all_image_urls.extend(user_image_urls)
+
+    # Add all images to the product
+    if all_image_urls:
+        service.add_product_images(created_product.id, all_image_urls)
+        db.refresh(created_product)
+
+    return created_product
 
 
 @router.get("/products/my", response_model=List[SecondHandProduct])

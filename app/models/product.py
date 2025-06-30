@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -41,7 +42,7 @@ class SecondHandProduct(Base):
     shopify_product_id = Column(
         String(50), nullable=True
     )  # Shopify product ID for verification
-    seller_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     is_verified = Column(
         Boolean, default=False
     )  # Whether the product SKU/barcode is verified

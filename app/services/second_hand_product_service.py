@@ -1,5 +1,6 @@
 # app/services/second_hand_product_service.py
 from typing import List, Optional, Dict, Any
+import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -17,7 +18,7 @@ class SecondHandProductService:
 
     async def create_second_hand_product(
         self,
-        user_id: int,
+        user_id: uuid.UUID,
         name: str,
         description: str,
         price: float,
@@ -75,7 +76,7 @@ class SecondHandProductService:
         }
 
     def get_user_products(
-        self, user_id: int, skip: int = 0, limit: int = 100
+        self, user_id: uuid.UUID, skip: int = 0, limit: int = 100
     ) -> List[SecondHandProduct]:
         """Get all second-hand products for a user"""
         return (
@@ -112,7 +113,7 @@ class SecondHandProductService:
         )
 
     def update_product(
-        self, product_id: int, user_id: int, update_data: Dict[str, Any]
+        self, product_id: int, user_id: uuid.UUID, update_data: Dict[str, Any]
     ) -> Optional[SecondHandProduct]:
         """Update a second-hand product (only by owner)"""
         product = (
@@ -141,7 +142,7 @@ class SecondHandProductService:
         self.db.refresh(product)
         return product
 
-    def delete_product(self, product_id: int, user_id: int) -> bool:
+    def delete_product(self, product_id: int, user_id: uuid.UUID) -> bool:
         """Delete a second-hand product (only by owner)"""
         product = (
             self.db.query(SecondHandProduct)
