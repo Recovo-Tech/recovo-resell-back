@@ -9,6 +9,7 @@ class ShopifyGraphQLClient:
     """Shopify GraphQL API client for product verification and management"""
 
     def __init__(self, shop_domain: str, access_token: Optional[str] = None):
+        print(f"DEBUG: Raw shop_domain input = '{shop_domain}'")
         # Clean the domain by removing any existing protocol
         clean_domain = shop_domain.replace('https://', '').replace('http://', '')
         

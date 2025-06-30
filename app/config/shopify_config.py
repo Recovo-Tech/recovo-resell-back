@@ -25,3 +25,4 @@ class ShopifySettings(BaseSettings):
 
 
 shopify_settings = ShopifySettings()
+print(f"STARTUP: SHOPIFY_APP_URL = '{shopify_settings.shopify_app_url}'")
