@@ -17,7 +17,7 @@ from app.schemas.second_hand_product import (
     ProductVerificationResponse,
     ProductSearchFilters,
 )
-from app.dependencies import get_current_user  # Assuming you have authentication
+from app.dependencies import get_current_user  
 from app.config.shopify_config import shopify_settings
 
 

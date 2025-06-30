@@ -9,7 +9,7 @@ from app.services.user import UserService
 
 SECRET_KEY = env.get("SECRET_KEY")
 ALGORITHM = env.get("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = env.get("ACCESS_TOKEN_EXPIRE_MINUTESRITHM", 30)
+ACCESS_TOKEN_EXPIRE_MINUTES = int(env.get("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 
 class AuthService:
@@ -30,7 +30,12 @@ class AuthService:
         if not self.verify_password(password, user.hashed_password):
             return None
 
-        return {"id": user.id, "username": user.username, "email": user.email}
+        return {
+            "id": str(user.id),  # Convert UUID to string for JSON serialization
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+        }
 
     def create_access_token(
         self, data: dict, expires_delta: Optional[timedelta] = None

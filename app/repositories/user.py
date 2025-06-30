@@ -1,5 +1,6 @@
 from app.models.user import User
 from app.repositories.base import BaseRepository
+from uuid import UUID
 
 
 class UserRepository(BaseRepository):
@@ -18,3 +19,9 @@ class UserRepository(BaseRepository):
             .filter((self.model.username == username) | (self.model.email == email))
             .first()
         )
+
+    def list_all(self):
+        return self.db.query(self.model).all()
+
+    def get_by_id(self, user_id: UUID):
+        return self.db.query(self.model).filter(self.model.id == user_id).first()

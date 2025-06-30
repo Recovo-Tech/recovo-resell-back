@@ -3,6 +3,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from uuid import UUID
 
 from app.config.db_config import get_db
 from app.services import (
@@ -34,6 +35,9 @@ def get_current_user(
             detail="Token payload missing user id",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Convert user_id to UUID if it's not already
+    if not isinstance(user_id, UUID):
+        user_id = UUID(str(user_id))
     user_service = UserService(db)
     user = user_service.get_user_by_id(user_id)
     if user is None:
@@ -43,6 +47,24 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+def admin_required(current_user=Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return current_user
+
+
+def client_required(current_user=Depends(get_current_user)):
+    if current_user.role != "client":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Client privileges required",
+        )
+    return current_user
 
 
 def get_cart_service(db: Session = Depends(get_db)) -> CartService:
