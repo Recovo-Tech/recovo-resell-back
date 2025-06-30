@@ -5,7 +5,8 @@ from sqlalchemy import and_
 
 from app.models.product import SecondHandProduct, SecondHandProductImage
 from app.models.user import User
-from app.services.shopify_service import ShopifyProductVerificationService
+from app.services.shopify_service import ShopifyProductVerificationService, ShopifyGraphQLClient
+from app.config.shopify_config import shopify_settings
 
 
 class SecondHandProductService:
@@ -160,8 +161,8 @@ class SecondHandProductService:
         self.db.commit()
         return True
 
-    def approve_product(self, product_id: int) -> Optional[SecondHandProduct]:
-        """Approve a second-hand product for sale (admin only)"""
+    async def approve_product(self, product_id: int) -> Optional[SecondHandProduct]:
+        """Approve a second-hand product for sale and publish to Shopify (admin only)"""
         product = (
             self.db.query(SecondHandProduct)
             .filter(SecondHandProduct.id == product_id)
@@ -171,10 +172,96 @@ class SecondHandProductService:
         if not product:
             return None
 
+        # Mark as approved
         product.is_approved = True
+        
+        # Try to publish to Shopify
+        try:
+            shopify_client = ShopifyGraphQLClient(
+                shopify_settings.shopify_app_url, 
+                shopify_settings.shopify_access_token
+            )
+            
+            # Create product in Shopify
+            shopify_product_id = await self._publish_to_shopify(shopify_client, product)
+            
+            if shopify_product_id:
+                product.shopify_product_id = shopify_product_id
+                
+        except Exception as e:
+            print(f"Warning: Failed to publish to Shopify: {str(e)}")
+            # Continue with approval even if Shopify publish fails
+        
         self.db.commit()
         self.db.refresh(product)
         return product
+
+    async def _publish_to_shopify(self, client: ShopifyGraphQLClient, product: SecondHandProduct) -> Optional[str]:
+        """Publish a second-hand product to Shopify store"""
+        mutation = """
+        mutation productCreate($input: ProductInput!) {
+            productCreate(input: $input) {
+                product {
+                    id
+                    title
+                    handle
+                }
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+        """
+        
+        # Get product images
+        images = [img.image_url for img in product.images] if product.images else []
+        
+        variables = {
+            "input": {
+                "title": f"{product.name} (Second-Hand)",
+                "descriptionHtml": f"""
+                    <p><strong>Condition:</strong> {product.condition.replace('_', ' ').title()}</p>
+                    <p><strong>Original SKU:</strong> {product.original_sku}</p>
+                    {f'<p><strong>Barcode:</strong> {product.barcode}</p>' if product.barcode else ''}
+                    <p>{product.description if product.description else ''}</p>
+                    <p><em>This is a second-hand item sold by our marketplace.</em></p>
+                """,
+                "vendor": "Second-Hand Marketplace",
+                "productType": "Second-Hand",
+                "tags": ["second-hand", product.condition, "marketplace"],
+                "status": "ACTIVE",
+                "variants": [
+                    {
+                        "price": str(product.price),
+                        "inventoryManagement": "SHOPIFY",
+                        "inventoryQuantity": 1,
+                        "sku": f"SH-{product.id}-{product.original_sku}",
+                        "barcode": product.barcode if product.barcode else None,
+                        "weight": 0,
+                        "weightUnit": "GRAMS"
+                    }
+                ],
+                "images": [{"src": url} for url in images] if images else []
+            }
+        }
+        
+        try:
+            result = await client.execute_query(mutation, variables)
+            
+            if result.get("data", {}).get("productCreate", {}).get("userErrors"):
+                errors = result["data"]["productCreate"]["userErrors"]
+                print(f"Shopify product creation errors: {errors}")
+                return None
+                
+            shopify_product = result.get("data", {}).get("productCreate", {}).get("product")
+            if shopify_product:
+                return shopify_product["id"]
+                
+        except Exception as e:
+            print(f"Error publishing to Shopify: {str(e)}")
+            
+        return None
 
     def add_product_images(
         self, product_id: int, image_urls: List[str]

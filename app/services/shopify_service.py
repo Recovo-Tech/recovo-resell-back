@@ -9,11 +9,15 @@ class ShopifyGraphQLClient:
     """Shopify GraphQL API client for product verification and management"""
 
     def __init__(self, shop_domain: str, access_token: Optional[str] = None):
-        self.shop_domain = shop_domain
+        # Clean the domain by removing any existing protocol
+        clean_domain = shop_domain.replace('https://', '').replace('http://', '')
+        
+        self.shop_domain = clean_domain  # Store clean domain
         self.access_token = access_token or shopify_settings.shopify_access_token
         self.api_version = shopify_settings.shopify_api_version
+        
         self.base_url = (
-            f"https://{shop_domain}/admin/api/{self.api_version}/graphql.json"
+            f"https://{clean_domain}/admin/api/{self.api_version}/graphql.json"
         )
 
     async def execute_query(
