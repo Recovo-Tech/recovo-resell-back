@@ -33,7 +33,7 @@ ENV/
 
 # mypy cache
 .mypy_cache/
-./app/__pycache__/*
+
 
 # PyInstaller
 #  
