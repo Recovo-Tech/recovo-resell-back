@@ -44,10 +44,11 @@ def delete_current_user(
     return {"detail": "User deleted"}
 
 
-@router.get("/", response_model=list[UserResponse], dependencies=[Depends(admin_required)])
+@router.get(
+    "/", response_model=list[UserResponse], dependencies=[Depends(admin_required)]
+)
 def list_users(user_service=Depends(get_user_service)):
-     return user_service.list_users()
-    
+    return user_service.list_users()
 
 
 @router.patch(

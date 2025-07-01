@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from os import environ as env
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 import bcrypt
 from jose import JWTError, jwt
@@ -22,9 +23,10 @@ class AuthService:
         )
 
     def authenticate_user(
-        self, username: str, password: str
+        self, username: str, password: str, tenant_id: UUID
     ) -> Optional[Dict[str, Any]]:
-        user = self.user_service.get_user_by_username(username)
+        # Look for user within the specific tenant
+        user = self.user_service.get_user_by_username_and_tenant(username, tenant_id)
         if not user:
             return None
         if not self.verify_password(password, user.hashed_password):
@@ -32,6 +34,7 @@ class AuthService:
 
         return {
             "id": str(user.id),  # Convert UUID to string for JSON serialization
+            "tenant_id": str(user.tenant_id),  # Include tenant_id in user data
             "username": user.username,
             "email": user.email,
             "role": user.role,

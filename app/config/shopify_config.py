@@ -21,7 +21,7 @@ class ShopifySettings(BaseSettings):
     model_config = ConfigDict(
         env_file=".env", extra="ignore"  # Allow extra fields but ignore them
     )
-    shopify_access_token: str = os.getenv("SHOPIFY_ACCESS_TOKEN", "") 
+    shopify_access_token: str = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
 
 
 shopify_settings = ShopifySettings()

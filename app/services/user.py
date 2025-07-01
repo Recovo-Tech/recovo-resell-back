@@ -13,13 +13,33 @@ class UserService:
     def get_user_by_id(self, user_id: UUID):
         return self.repo.get_by_id(user_id)
 
+    def get_user_by_id_and_tenant(self, user_id: UUID, tenant_id: UUID):
+        """Get user by ID and ensure they belong to the specified tenant"""
+        return self.repo.get_by_id_and_tenant(user_id, tenant_id)
+
     def get_user_by_username(self, username: str):
         return self.repo.get_by_username(username)
 
+    def get_user_by_username_and_tenant(self, username: str, tenant_id: UUID):
+        """Get user by username within a specific tenant"""
+        return self.repo.get_by_username_and_tenant(username, tenant_id)
+
+    def get_user_by_email_and_tenant(self, email: str, tenant_id: UUID):
+        """Get user by email within a specific tenant"""
+        return self.repo.get_by_email_and_tenant(email, tenant_id)
+
     def create_user(
-        self, username: str, email: str, password: str, role: str = "client"
+        self,
+        username: str,
+        email: str,
+        password: str,
+        tenant_id: UUID,
+        role: str = "client",
     ):
-        existing_user = self.repo.get_by_username_or_email(username, email)
+        # Check if username/email exists within this tenant
+        existing_user = self.repo.get_by_username_or_email_and_tenant(
+            username, email, tenant_id
+        )
         if existing_user:
             raise HTTPException(
                 status_code=400, detail="Username or email already in use"
@@ -33,6 +53,7 @@ class UserService:
             email=email,
             hashed_password=hashed,
             role=role or "client",
+            tenant_id=tenant_id,
         )
         return self.repo.create(new_user)
 

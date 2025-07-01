@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.config.db_config import get_db
+from app.models.tenant import Tenant
+from app.middleware.tenant_middleware import get_current_tenant
 from app.services import (
     AuthService,
     CartService,
@@ -18,7 +20,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     auth_service = AuthService(db)
     payload = auth_service.decode_access_token(token)
@@ -29,27 +33,41 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     user_id = payload.get("id")
+    tenant_id = payload.get("tenant_id")
+
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token payload missing user id",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Verify tenant_id in token matches current tenant
+    if tenant_id and str(tenant_id) != str(current_tenant.id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token tenant mismatch",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # Convert user_id to UUID if it's not already
     if not isinstance(user_id, UUID):
         user_id = UUID(str(user_id))
+
     user_service = UserService(db)
-    user = user_service.get_user_by_id(user_id)
+    # Filter by tenant to ensure user belongs to current tenant
+    user = user_service.get_user_by_id_and_tenant(user_id, current_tenant.id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="User not found or not authorized for this tenant",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
 
 
 def admin_required(current_user=Depends(get_current_user)):
+    """Dependency to ensure the current user has admin role"""
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

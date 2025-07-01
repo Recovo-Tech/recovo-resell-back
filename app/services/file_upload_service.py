@@ -37,37 +37,51 @@ class FileUploadService:
             )
         # Note: UploadFile does not have .size, so you may want to check after reading
 
-    def _generate_filename(self, original_filename: str, user_id: str = None, shopify_url: str = None) -> str:
+    def _generate_filename(
+        self, original_filename: str, user_id: str = None, shopify_url: str = None
+    ) -> str:
         file_extension = os.path.splitext(original_filename)[1].lower()
         unique_id = str(uuid.uuid4())
-        
+
         # Create a more descriptive filename with user and shopify info
         filename_parts = [unique_id]
-        
+
         if user_id:
             # Take first 8 characters of user ID for brevity
             user_part = str(user_id)[:8] if len(str(user_id)) > 8 else str(user_id)
             filename_parts.append(f"user_{user_part}")
-        
+
         if shopify_url:
             # Extract domain from shopify URL and sanitize
-            domain = shopify_url.replace("https://", "").replace("http://", "").split("/")[0]
-            domain = domain.replace(".myshopify.com", "").replace(".", "_")[:20]  # Limit length
+            domain = (
+                shopify_url.replace("https://", "").replace("http://", "").split("/")[0]
+            )
+            domain = domain.replace(".myshopify.com", "").replace(".", "_")[
+                :20
+            ]  # Limit length
             filename_parts.append(f"shop_{domain}")
-        
+
         filename = "_".join(filename_parts) + file_extension
         return filename
 
-    def _generate_s3_key(self, original_filename: str, user_id: str = None, shopify_url: str = None) -> str:
+    def _generate_s3_key(
+        self, original_filename: str, user_id: str = None, shopify_url: str = None
+    ) -> str:
         file_extension = os.path.splitext(original_filename)[1].lower()
         image_id = str(uuid.uuid4())
         shop_name = "unknownshop"
         if shopify_url:
             # Extract and sanitize shop name
-            domain = shopify_url.replace("https://", "").replace("http://", "").split("/")[0]
-            shop_name = domain.replace(".myshopify.com", "").replace(".", "_")[:32]  # Limit length
+            domain = (
+                shopify_url.replace("https://", "").replace("http://", "").split("/")[0]
+            )
+            shop_name = domain.replace(".myshopify.com", "").replace(".", "_")[
+                :32
+            ]  # Limit length
         user_part = str(user_id) if user_id else "nouser"
-        s3_key = f"second_hand_products/{shop_name}/{user_part}/{image_id}{file_extension}"
+        s3_key = (
+            f"second_hand_products/{shop_name}/{user_part}/{image_id}{file_extension}"
+        )
         return s3_key
 
     async def _optimize_image(
@@ -90,7 +104,13 @@ class FileUploadService:
                 detail=f"Error processing image: {str(e)}",
             )
 
-    async def upload_image(self, file: UploadFile, optimize: bool = True, user_id: str = None, shopify_url: str = None) -> str:
+    async def upload_image(
+        self,
+        file: UploadFile,
+        optimize: bool = True,
+        user_id: str = None,
+        shopify_url: str = None,
+    ) -> str:
         self._validate_image(file)
         file_content = await file.read()
         if len(file_content) > self.max_file_size:
@@ -106,7 +126,7 @@ class FileUploadService:
                 Bucket=self.bucket_name,
                 Key=s3_key,
                 Body=file_content,
-                ContentType="image/jpeg"
+                ContentType="image/jpeg",
             )
             s3_url = f"https://{self.bucket_name}.s3.{aws_settings.aws_region}.amazonaws.com/{s3_key}"
             return s3_url
@@ -117,7 +137,11 @@ class FileUploadService:
             )
 
     async def upload_multiple_images(
-        self, files: List[UploadFile], max_files: int = 10, user_id: str = None, shopify_url: str = None
+        self,
+        files: List[UploadFile],
+        max_files: int = 10,
+        user_id: str = None,
+        shopify_url: str = None,
     ) -> List[str]:
         if len(files) > max_files:
             raise HTTPException(
@@ -126,7 +150,9 @@ class FileUploadService:
             )
         uploaded_urls = []
         for file in files:
-            url = await self.upload_image(file, user_id=user_id, shopify_url=shopify_url)
+            url = await self.upload_image(
+                file, user_id=user_id, shopify_url=shopify_url
+            )
             uploaded_urls.append(url)
         return uploaded_urls
 

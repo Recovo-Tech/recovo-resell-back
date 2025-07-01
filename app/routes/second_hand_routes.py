@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
 from app.models.user import User
+from app.models.tenant import Tenant
+from app.middleware.tenant_middleware import get_current_tenant
 from app.services.second_hand_product_service import SecondHandProductService
 from app.services.shopify_service import ShopifyProductVerificationService
 from app.services.file_upload_service import FileUploadService
@@ -17,8 +19,7 @@ from app.schemas.second_hand_product import (
     ProductVerificationResponse,
     ProductSearchFilters,
 )
-from app.dependencies import get_current_user  
-from app.config.shopify_config import shopify_settings
+from app.dependencies import get_current_user, admin_required
 
 
 router = APIRouter(prefix="/second-hand", tags=["Second Hand Products"])
@@ -26,13 +27,14 @@ router = APIRouter(prefix="/second-hand", tags=["Second Hand Products"])
 
 @router.post("/verify-product", response_model=ProductVerificationResponse)
 async def verify_product(
-    verification_request: ProductVerificationRequest, db: Session = Depends(get_db)
+    verification_request: ProductVerificationRequest,
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
 ):
-    """Verify if a product with given SKU/barcode exists in the Shopify store (single store only)"""
-    # Get Shopify config from environment
-    shopify_config = shopify_settings
+    """Verify if a product with given SKU/barcode exists in the Shopify store for current tenant"""
+    # Use tenant-specific Shopify config
     verification_service = ShopifyProductVerificationService(
-        shopify_config.shopify_app_url, shopify_config.shopify_access_token
+        current_tenant.shopify_app_url, current_tenant.shopify_access_token
     )
 
     result = await verification_service.verify_product_eligibility(
@@ -52,26 +54,24 @@ async def create_second_hand_product(
     barcode: str = Form(None),
     files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
+    current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
     """Create a new second-hand product listing with image uploads in one request"""
     service = SecondHandProductService(db)
     upload_service = FileUploadService()
 
-    # Get Shopify config from environment
-    shopify_config = shopify_settings
-
     # Validate condition
     valid_conditions = ["new", "like_new", "good", "fair", "poor"]
     if condition not in valid_conditions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid condition. Must be one of: {', '.join(valid_conditions)}"
+            detail=f"Invalid condition. Must be one of: {', '.join(valid_conditions)}",
         )
 
-    # Step 1: Verify the product exists in Shopify first
+    # Step 1: Verify the product exists in Shopify first using tenant config
     verification_service = ShopifyProductVerificationService(
-        shopify_config.shopify_app_url, shopify_config.shopify_access_token
+        current_tenant.shopify_app_url, current_tenant.shopify_access_token
     )
 
     verification_result = await verification_service.verify_product_eligibility(
@@ -81,20 +81,21 @@ async def create_second_hand_product(
     if not verification_result["is_verified"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Product verification failed: {verification_result.get('error', 'Product not found in Shopify')}"
+            detail=f"Product verification failed: {verification_result.get('error', 'Product not found in Shopify')}",
         )
 
     # Step 2: Create the product in the database
     result = await service.create_second_hand_product(
         user_id=current_user.id,
+        tenant_id=current_tenant.id,  # Add tenant_id
         name=name,
         description=description,
         price=price,
         condition=condition,
         original_sku=original_sku,
         barcode=barcode,
-        shop_domain=shopify_config.shopify_app_url,
-        shopify_access_token=shopify_config.shopify_access_token,
+        shop_domain=current_tenant.shopify_app_url,  # Use tenant config
+        shopify_access_token=current_tenant.shopify_access_token,  # Use tenant config
     )
 
     if not result["success"]:
@@ -109,17 +110,21 @@ async def create_second_hand_product(
     if files and files[0].filename:  # Check if files were actually uploaded
         try:
             user_image_urls = await upload_service.upload_multiple_images(
-                files, 
-                user_id=str(current_user.id), 
-                shopify_url=shopify_config.shopify_app_url
+                files,
+                user_id=str(current_user.id),
+                shopify_url=current_tenant.shopify_app_url,  # Use tenant config
             )
         except HTTPException:
             # If image upload fails, we should clean up the created product
-            service.delete_product(created_product.id, current_user.id)
+            service.delete_product(
+                created_product.id, current_user.id, current_tenant.id
+            )
             raise
         except Exception as e:
             # If image upload fails, we should clean up the created product
-            service.delete_product(created_product.id, current_user.id)
+            service.delete_product(
+                created_product.id, current_user.id, current_tenant.id
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error uploading images: {str(e)}",
@@ -127,22 +132,26 @@ async def create_second_hand_product(
 
     # Step 4: Update the product with all image URLs (Shopify + user uploaded)
     all_image_urls = []
-    
+
     # Add Shopify image first (if available from verification)
     shopify_image_url = None
     product_info = verification_result.get("product_info")
     if product_info:
         # Try common keys for image URL
-        shopify_image_url = product_info.get("image_url") or product_info.get("first_image")
+        shopify_image_url = product_info.get("image_url") or product_info.get(
+            "first_image"
+        )
     if shopify_image_url:
         all_image_urls.append(shopify_image_url)
-    
+
     # Add user uploaded images
     all_image_urls.extend(user_image_urls)
 
     # Add all images to the product
     if all_image_urls:
-        service.add_product_images(created_product.id, all_image_urls)
+        service.add_product_images(
+            created_product.id, current_tenant.id, all_image_urls
+        )
         db.refresh(created_product)
 
     return created_product
@@ -153,27 +162,35 @@ async def get_my_products(
     skip: int = 0,
     limit: int = 100,
     current_user: User = Depends(get_current_user),
+    current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
     """Get current user's second-hand products"""
     service = SecondHandProductService(db)
-    return service.get_user_products(current_user.id, skip, limit)
+    return service.get_user_products(current_user.id, current_tenant.id, skip, limit)
 
 
 @router.get("/products", response_model=List[SecondHandProduct])
 async def get_approved_products(
-    skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
+    skip: int = 0,
+    limit: int = 100,
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
 ):
-    """Get all approved second-hand products"""
+    """Get all approved second-hand products for current tenant"""
     service = SecondHandProductService(db)
-    return service.get_approved_products(skip, limit)
+    return service.get_approved_products(current_tenant.id, skip, limit)
 
 
 @router.get("/products/{product_id}", response_model=SecondHandProduct)
-async def get_product(product_id: int, db: Session = Depends(get_db)):
-    """Get a specific second-hand product by ID"""
+async def get_product(
+    product_id: int,
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Get a specific second-hand product by ID within current tenant"""
     service = SecondHandProductService(db)
-    product = service.get_product_by_id(product_id)
+    product = service.get_product_by_id(product_id, current_tenant.id)
 
     if not product:
         raise HTTPException(
@@ -188,15 +205,18 @@ async def update_product(
     product_id: int,
     update_data: SecondHandProductUpdate,
     current_user: User = Depends(get_current_user),
+    current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
-    """Update a second-hand product (only by owner)"""
+    """Update a second-hand product (only by owner within tenant)"""
     service = SecondHandProductService(db)
 
     # Convert update_data to dict, excluding None values
     update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
 
-    product = service.update_product(product_id, current_user.id, update_dict)
+    product = service.update_product(
+        product_id, current_user.id, current_tenant.id, update_dict
+    )
 
     if not product:
         raise HTTPException(
@@ -211,12 +231,13 @@ async def update_product(
 async def delete_product(
     product_id: int,
     current_user: User = Depends(get_current_user),
+    current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
-    """Delete a second-hand product (only by owner)"""
+    """Delete a second-hand product (only by owner within tenant)"""
     service = SecondHandProductService(db)
 
-    success = service.delete_product(product_id, current_user.id)
+    success = service.delete_product(product_id, current_user.id, current_tenant.id)
 
     if not success:
         raise HTTPException(
@@ -228,11 +249,16 @@ async def delete_product(
 
 
 @router.post("/products/search", response_model=List[SecondHandProduct])
-async def search_products(filters: ProductSearchFilters, db: Session = Depends(get_db)):
-    """Search approved second-hand products with filters"""
+async def search_products(
+    filters: ProductSearchFilters,
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Search approved second-hand products with filters within current tenant"""
     service = SecondHandProductService(db)
 
     return service.search_products(
+        tenant_id=current_tenant.id,
         query=filters.query,
         condition=filters.condition,
         min_price=filters.min_price,
@@ -246,14 +272,14 @@ async def search_products(filters: ProductSearchFilters, db: Session = Depends(g
 @router.post("/admin/products/{product_id}/approve", response_model=SecondHandProduct)
 async def approve_product(
     product_id: int,
-    current_user: User = Depends(get_current_user),  # Add admin check here
+    current_user: User = Depends(admin_required),  # Use admin dependency
+    current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
     """Approve a second-hand product for sale and publish to Shopify (admin only)"""
-    # TODO: Add admin role check
     service = SecondHandProductService(db)
 
-    product = await service.approve_product(product_id)
+    product = await service.approve_product(product_id, current_tenant.id)
 
     if not product:
         raise HTTPException(
