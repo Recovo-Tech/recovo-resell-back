@@ -10,6 +10,11 @@ class ShopifyGraphQLClient:
 
     def __init__(self, shop_domain: str, access_token: Optional[str] = None):
         print(f"DEBUG: Raw shop_domain input = '{shop_domain}'")
+        
+        # Validate shop_domain is not None or empty
+        if not shop_domain:
+            raise ValueError("shop_domain cannot be None or empty. Please configure Shopify settings for this tenant.")
+        
         # Clean the domain by removing any existing protocol
         clean_domain = shop_domain.replace("https://", "").replace("http://", "")
 

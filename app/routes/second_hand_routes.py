@@ -32,16 +32,29 @@ async def verify_product(
     db: Session = Depends(get_db),
 ):
     """Verify if a product with given SKU/barcode exists in the Shopify store for current tenant"""
+    
+    # Check if tenant has Shopify configuration
+    if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Shopify integration not configured for this tenant. Please contact your administrator."
+        )
+    
     # Use tenant-specific Shopify config
-    verification_service = ShopifyProductVerificationService(
-        current_tenant.shopify_app_url, current_tenant.shopify_access_token
-    )
+    try:
+        verification_service = ShopifyProductVerificationService(
+            current_tenant.shopify_app_url, current_tenant.shopify_access_token
+        )
 
-    result = await verification_service.verify_product_eligibility(
-        sku=verification_request.sku, barcode=verification_request.barcode
-    )
+        result = await verification_service.verify_product_eligibility(
+            sku=verification_request.sku, barcode=verification_request.barcode
+        )
 
-    return ProductVerificationResponse(**result)
+        return ProductVerificationResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error verifying product: {str(e)}")
 
 
 @router.post("/products", response_model=SecondHandProduct)
