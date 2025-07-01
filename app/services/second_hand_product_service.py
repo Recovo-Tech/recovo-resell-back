@@ -1,6 +1,7 @@
 # app/services/second_hand_product_service.py
 from typing import List, Optional, Dict, Any
 import uuid
+import asyncio
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -51,7 +52,16 @@ class SecondHandProductService:
                     ),
                 }
         else:
-            verification_result = {"is_verified": False}
+            verification_result = {"is_verified": False, "product_info": {}}
+
+        # Extract product information from verification_result if available
+        product_info = verification_result.get("product_info", {})
+        weight = product_info.get("weight")
+        weight_unit = product_info.get("weightUnit")
+        original_title = product_info.get("title", "")
+        original_description = product_info.get("description", "")
+        original_product_type = product_info.get("productType", "")
+        original_vendor = product_info.get("vendor", "")
 
         # Create the second-hand product
         second_hand_product = SecondHandProduct(
@@ -65,9 +75,13 @@ class SecondHandProductService:
             tenant_id=tenant_id,  # Add tenant_id
             is_verified=verification_result["is_verified"],
             is_approved=False,  # Requires admin approval
-            shopify_product_id=verification_result.get("product_info", {}).get(
-                "shopify_id"
-            ),
+            shopify_product_id=product_info.get("shopify_id"),
+            weight=weight,
+            weight_unit=weight_unit,
+            original_title=original_title,
+            original_description=original_description,
+            original_product_type=original_product_type,
+            original_vendor=original_vendor,
         )
 
         self.db.add(second_hand_product)
@@ -189,110 +203,403 @@ class SecondHandProductService:
         self.db.commit()
         return True
 
-    async def approve_product(self, product_id: int) -> Optional[SecondHandProduct]:
+    async def approve_product(
+        self, product_id: int, tenant_id: uuid.UUID
+    ) -> Dict[str, Any]:
         """Approve a second-hand product for sale and publish to Shopify (admin only)"""
-        product = (
-            self.db.query(SecondHandProduct)
-            .filter(SecondHandProduct.id == product_id)
-            .first()
-        )
-
+        product = self.get_product_by_id(product_id, tenant_id)
         if not product:
-            return None
+            return {
+                "success": False,
+                "error": "Product not found",
+                "error_code": "PRODUCT_NOT_FOUND"
+            }
 
         # Mark as approved
         product.is_approved = True
-
-        # Try to publish to Shopify
-        try:
-            shopify_client = ShopifyGraphQLClient(
-                shopify_settings.shopify_app_url, shopify_settings.shopify_access_token
-            )
-
-            # Create product in Shopify
-            shopify_product_id = await self._publish_to_shopify(shopify_client, product)
-
-            if shopify_product_id:
-                product.shopify_product_id = shopify_product_id
-
-        except Exception as e:
-            print(f"Warning: Failed to publish to Shopify: {str(e)}")
-            # Continue with approval even if Shopify publish fails
-
         self.db.commit()
         self.db.refresh(product)
-        return product
+
+        # Try to publish to Shopify using the tenant's credentials
+        try:
+            # Load the tenant relationship
+            tenant = product.tenant
+            if tenant and tenant.shopify_app_url and tenant.shopify_access_token:
+                shopify_client = ShopifyGraphQLClient(
+                    tenant.shopify_app_url, tenant.shopify_access_token
+                )
+                publish_result = await self._publish_to_shopify(shopify_client, product)
+                
+                if publish_result["success"]:
+                    product.shopify_product_id = publish_result["shopify_product_id"]
+                    self.db.commit()
+                    self.db.refresh(product)
+                    
+                    return {
+                        "success": True,
+                        "product": product,
+                        "shopify_product_id": publish_result["shopify_product_id"],
+                        "message": "Product approved and successfully published to Shopify"
+                    }
+                else:
+                    # Product approved but Shopify publish failed
+                    return {
+                        "success": True,
+                        "product": product,
+                        "warning": f"Product approved but failed to publish to Shopify: {publish_result['error']}",
+                        "error_code": publish_result.get("error_code", "SHOPIFY_PUBLISH_FAILED")
+                    }
+            else:
+                return {
+                    "success": True,
+                    "product": product,
+                    "warning": "Product approved but Shopify credentials not configured",
+                    "error_code": "SHOPIFY_NOT_CONFIGURED"
+                }
+        except Exception as e:
+            error_msg = f"Unexpected error during approval: {str(e)}"
+            print(error_msg)
+            return {
+                "success": True,
+                "product": product,
+                "warning": f"Product approved but failed to publish to Shopify: {error_msg}",
+                "error_code": "UNEXPECTED_ERROR"
+            }
 
     async def _publish_to_shopify(
         self, client: ShopifyGraphQLClient, product: SecondHandProduct
-    ) -> Optional[str]:
-        """Publish a second-hand product to Shopify store"""
-        mutation = """
-        mutation productCreate($input: ProductInput!) {
-            productCreate(input: $input) {
-                product {
-                    id
-                    title
-                    handle
-                }
-                userErrors {
-                    field
-                    message
-                }
-            }
-        }
-        """
-
-        # Get product images
-        images = [img.image_url for img in product.images] if product.images else []
-
-        variables = {
-            "input": {
-                "title": f"{product.name} (Second-Hand)",
-                "descriptionHtml": f"""
-                    <p><strong>Condition:</strong> {product.condition.replace('_', ' ').title()}</p>
-                    <p><strong>Original SKU:</strong> {product.original_sku}</p>
-                    {f'<p><strong>Barcode:</strong> {product.barcode}</p>' if product.barcode else ''}
-                    <p>{product.description if product.description else ''}</p>
-                    <p><em>This is a second-hand item sold by our marketplace.</em></p>
-                """,
-                "vendor": "Second-Hand Marketplace",
-                "productType": "Second-Hand",
-                "tags": ["second-hand", product.condition, "marketplace"],
-                "status": "ACTIVE",
-                "variants": [
-                    {
-                        "price": str(product.price),
-                        "inventoryManagement": "SHOPIFY",
-                        "inventoryQuantity": 1,
-                        "sku": f"SH-{product.id}-{product.original_sku}",
-                        "barcode": product.barcode if product.barcode else None,
-                        "weight": 0,
-                        "weightUnit": "GRAMS",
-                    }
-                ],
-                "images": [{"src": url} for url in images] if images else [],
-            }
-        }
-
+    ) -> Dict[str, Any]:
+        """Publish a second-hand product to Shopify store with images and inventory"""
+        
         try:
-            result = await client.execute_query(mutation, variables)
+            # Get product images
+            images = [img.image_url for img in product.images] if product.images else []
+            print(f"DEBUG: Found {len(images)} images for product {product.id}: {images}")
+            
+            # Prepare media input for images with proper structure and validation
+            media_input = []
+            for i, img_url in enumerate(images):
+                if img_url and img_url.startswith(('http://', 'https://')):
+                    media_input.append({
+                        "mediaContentType": "IMAGE",
+                        "originalSource": img_url,
+                        "alt": f"{product.name} - Image {i + 1}"
+                    })
+                    print(f"DEBUG: Added image {i+1} to media input: {img_url}")
+                else:
+                    print(f"WARNING: Skipping invalid image URL: {img_url}")
+            
+            print(f"DEBUG: Final media input array: {media_input}")
+            
+            # Build enhanced description with proper formatting
+            description_parts = []
+            
+            # Add second-hand product description first
+            if product.description and product.description.strip():
+                description_parts.append(f"<p>{product.description}</p>")
+            
+            # Add original description if available
+            if product.original_description and product.original_description.strip():
+                description_parts.append(f"<h3>Original Description:</h3>")
+                # Handle both plain text and HTML descriptions
+                if product.original_description.startswith('<'):
+                    description_parts.append(product.original_description)
+                else:
+                    description_parts.append(f"<p>{product.original_description}</p>")
+            
+            # Add product details section
+            details_html = f"""
+                <h3>Product Details</h3>
+                <ul>
+                    <li><strong>Condition:</strong> {product.condition.replace('_', ' ').title()}</li>
+                    <li><strong>Original SKU:</strong> {product.original_sku}</li>
+                    {f'<li><strong>Barcode:</strong> {product.barcode}</li>' if product.barcode else ''}
+                    {f'<li><strong>Original Brand:</strong> {product.original_vendor}</li>' if product.original_vendor else ''}
+                    {f'<li><strong>Weight:</strong> {product.weight} {product.weight_unit}</li>' if product.weight else ''}
+                </ul>
+                <p><em>This is a high-quality second-hand item sold through our marketplace platform.</em></p>
+            """
+            description_parts.append(details_html)
+            
+            # Combine all description parts
+            enhanced_description = "".join(description_parts)
 
+            # Determine product type - use original if available, otherwise default
+            product_type = product.original_product_type if product.original_product_type else "Second-Hand"
+            
+            # Determine vendor - use original if available, otherwise default  
+            vendor = product.original_vendor if product.original_vendor else "Second-Hand Marketplace"
+            
+            # Validate and prepare weight data
+            weight_value = 0.0
+            weight_unit = "GRAMS"
+            if product.weight and product.weight > 0:
+                weight_value = float(product.weight)
+                if product.weight_unit:
+                    # Ensure weight unit is valid for Shopify
+                    valid_units = ["GRAMS", "KILOGRAMS", "OUNCES", "POUNDS"]
+                    weight_unit = product.weight_unit.upper()
+                    if weight_unit not in valid_units:
+                        print(f"WARNING: Invalid weight unit '{weight_unit}', defaulting to GRAMS")
+                        weight_unit = "GRAMS"
+                print(f"DEBUG: Setting product weight: {weight_value} {weight_unit}")
+            else:
+                print("DEBUG: No weight data available, using default values")
+
+            # Use the proven productCreate mutation (most reliable approach)
+            mutation = """
+            mutation productCreate($input: ProductInput!) {
+                productCreate(input: $input) {
+                    product {
+                        id
+                        title
+                        handle
+                        status
+                        productType
+                        vendor
+                        variants(first: 1) {
+                            edges {
+                                node {
+                                    id
+                                    weight
+                                    weightUnit
+                                    inventoryItem {
+                                        id
+                                        tracked
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+            """
+
+            # Prepare product input using the proven ProductInput structure
+            product_variables = {
+                "input": {
+                    "title": f"{product.name} (Second-Hand)",
+                    "descriptionHtml": enhanced_description,
+                    "vendor": vendor,
+                    "productType": product_type,
+                    "status": "ACTIVE",
+                    "tags": ["second-hand", product.condition, "marketplace", "pre-owned"],
+                    "variants": [
+                        {
+                            "price": str(product.price),
+                            "compareAtPrice": None,
+                            "inventoryManagement": "SHOPIFY",
+                            "inventoryPolicy": "DENY",
+                            "sku": f"SH-{product.id}-{product.original_sku}",
+                            "barcode": product.barcode if product.barcode else None,
+                            "weight": weight_value,
+                            "weightUnit": weight_unit,
+                            "requiresShipping": True,
+                            "taxable": True
+                        }
+                    ]
+                }
+            }
+
+            print(f"DEBUG: Publishing product to Shopify with variables: {product_variables}")
+            result = await client.execute_query(mutation, product_variables)
+            print(f"DEBUG: Shopify API response: {result}")
+
+            # Check for GraphQL errors
+            if result.get("errors"):
+                error_messages = [error.get("message", "Unknown error") for error in result["errors"]]
+                error_msg = f"GraphQL errors: {', '.join(error_messages)}"
+                print(f"Shopify GraphQL errors: {error_msg}")
+                return {
+                    "success": False,
+                    "error": f"Failed to connect to Shopify API: {error_msg}",
+                    "error_code": "GRAPHQL_ERROR"
+                }
+
+            # Check for user errors in the response
             if result.get("data", {}).get("productCreate", {}).get("userErrors"):
                 errors = result["data"]["productCreate"]["userErrors"]
-                print(f"Shopify product creation errors: {errors}")
-                return None
+                error_messages = []
+                for error in errors:
+                    field = error.get("field", ["unknown"])[0] if error.get("field") else "unknown"
+                    message = error.get("message", "Unknown error")
+                    error_messages.append(f"{field}: {message}")
+                
+                error_msg = f"Product creation failed: {'; '.join(error_messages)}"
+                print(f"Shopify product creation errors: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "error_code": "PRODUCT_CREATE_ERROR"
+                }
 
             shopify_product = (
                 result.get("data", {}).get("productCreate", {}).get("product")
             )
             if shopify_product:
-                return shopify_product["id"]
+                print(f"DEBUG: Successfully created product: {shopify_product}")
+                shopify_product_id = shopify_product["id"]
+                
+                # Validate that product details were properly set
+                print(f"✅ Product created with:")
+                print(f"   - Title: {shopify_product.get('title')}")
+                print(f"   - Product Type: {shopify_product.get('productType')}")
+                print(f"   - Vendor: {shopify_product.get('vendor')}")
+                
+                # Validate that weight was properly set
+                if shopify_product.get("variants", {}).get("edges"):
+                    variant = shopify_product["variants"]["edges"][0]["node"]
+                    variant_weight = variant.get("weight")
+                    variant_weight_unit = variant.get("weightUnit")
+                    print(f"   - Weight: {variant_weight} {variant_weight_unit}")
+                    
+                    if weight_value > 0 and (not variant_weight or variant_weight != weight_value):
+                        print(f"⚠️ WARNING: Expected weight {weight_value} but got {variant_weight}")
+                
+                # Always add images using productCreateMedia (most reliable method)
+                if len(media_input) > 0:
+                    print(f"DEBUG: Uploading {len(media_input)} images using productCreateMedia...")
+                    image_success = await self._add_images_to_product(client, shopify_product_id, media_input)
+                    if image_success:
+                        print("✅ Image upload completed successfully")
+                    else:
+                        print("⚠️ Image upload failed - product created without images")
+                        # Don't fail the entire operation for image upload issues
+                else:
+                    print("ℹ️ No images to upload")
+                
+                # Set inventory for the variant if we have a variant and it's tracked
+                if shopify_product.get("variants", {}).get("edges"):
+                    variant = shopify_product["variants"]["edges"][0]["node"]
+                    inventory_item = variant.get("inventoryItem", {})
+                    inventory_item_id = inventory_item.get("id")
+                    is_tracked = inventory_item.get("tracked", False)
+                    
+                    if inventory_item_id and is_tracked:
+                        inventory_success = await self._set_inventory_quantity(client, inventory_item_id, 1)
+                        if not inventory_success:
+                            print("Warning: Failed to set inventory quantity, but product was created successfully")
+                    else:
+                        print("DEBUG: Inventory not tracked for this product or no inventory item ID found")
+                
+                return {
+                    "success": True,
+                    "shopify_product_id": shopify_product_id,
+                    "message": "Product successfully published to Shopify"
+                }
+            else:
+                print("ERROR: No product returned in response despite no errors")
+                return {
+                    "success": False,
+                    "error": "Product creation succeeded but no product data was returned",
+                    "error_code": "NO_PRODUCT_DATA"
+                }
 
         except Exception as e:
-            print(f"Error publishing to Shopify: {str(e)}")
-
-        return None
+            error_msg = f"Unexpected error publishing to Shopify: {str(e)}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "error": error_msg,
+                "error_code": "UNEXPECTED_ERROR"
+            }
+    
+    async def _set_inventory_quantity(
+        self, client: ShopifyGraphQLClient, inventory_item_id: str, quantity: int
+    ) -> bool:
+        """Set inventory quantity for a product variant using the new API"""
+        try:
+            # Get the primary location first
+            location_query = """
+            query {
+                locations(first: 1) {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+            """
+            
+            location_result = await client.execute_query(location_query)
+            locations = location_result.get("data", {}).get("locations", {}).get("edges", [])
+            
+            if not locations:
+                print("No locations found for inventory management")
+                return False
+            
+            location_id = locations[0]["node"]["id"]
+            location_name = locations[0]["node"]["name"]
+            print(f"DEBUG: Using location: {location_name} ({location_id})")
+            
+            # Use the correct inventorySetOnHandQuantities mutation
+            inventory_mutation = """
+            mutation inventorySetOnHandQuantities($input: InventorySetOnHandQuantitiesInput!) {
+                inventorySetOnHandQuantities(input: $input) {
+                    inventoryAdjustmentGroup {
+                        createdAt
+                        reason
+                        changes {
+                            name
+                            delta
+                        }
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+            """
+            
+            inventory_variables = {
+                "input": {
+                    "reason": "correction",  # Valid reason from API docs
+                    "setQuantities": [
+                        {
+                            "inventoryItemId": inventory_item_id,
+                            "locationId": location_id,
+                            "quantity": quantity  # Set absolute quantity
+                        }
+                    ]
+                }
+            }
+            
+            print(f"DEBUG: Setting inventory with variables: {inventory_variables}")
+            inventory_result = await client.execute_query(inventory_mutation, inventory_variables)
+            print(f"DEBUG: Inventory set response: {inventory_result}")
+            
+            # Check for errors
+            if inventory_result.get("data", {}).get("inventorySetOnHandQuantities", {}).get("userErrors"):
+                errors = inventory_result["data"]["inventorySetOnHandQuantities"]["userErrors"]
+                print(f"Inventory set errors: {errors}")
+                return False
+            
+            # Check if adjustment was successful
+            adjustment_group = inventory_result.get("data", {}).get("inventorySetOnHandQuantities", {}).get("inventoryAdjustmentGroup")
+            if adjustment_group:
+                print(f"✅ Successfully set inventory quantity - adjustment created at {adjustment_group.get('createdAt')}")
+                changes = adjustment_group.get("changes", [])
+                for change in changes:
+                    print(f"   - {change.get('name')}: delta {change.get('delta')}")
+                return True
+            else:
+                print("✅ Inventory set successfully (no adjustment group needed)")
+                return True
+            
+        except Exception as e:
+            print(f"Error setting inventory: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
 
     def add_product_images(
         self, product_id: int, tenant_id: uuid.UUID, image_urls: List[str]
@@ -348,17 +655,165 @@ class SecondHandProductService:
 
         return db_query.offset(skip).limit(limit).all()
 
-    async def approve_product(
-        self, product_id: int, tenant_id: uuid.UUID
-    ) -> Optional[SecondHandProduct]:
-        """Approve a second-hand product for sale and publish to Shopify (admin only)"""
-        product = self.get_product_by_id(product_id, tenant_id)
-        if not product:
-            return None
-
-        # Mark as approved
-        product.is_approved = True
-        self.db.commit()
-        self.db.refresh(product)
-
-        return product
+    async def _add_images_to_product(
+        self, client: ShopifyGraphQLClient, product_id: str, media_input: list
+    ) -> bool:
+        """Add images to an existing Shopify product using productCreateMedia mutation with retry logic"""
+        if not media_input:
+            print("No images to upload")
+            return True
+            
+        try:
+            media_mutation = """
+            mutation productCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+                productCreateMedia(productId: $productId, media: $media) {
+                    media {
+                        ... on MediaImage {
+                            id
+                            status
+                            image {
+                                src
+                                altText
+                            }
+                        }
+                    }
+                    mediaUserErrors {
+                        field
+                        message
+                        code
+                    }
+                }
+            }
+            """
+            
+            # Upload images one by one to avoid rate limiting and improve success rate
+            successful_uploads = 0
+            total_images = len(media_input)
+            
+            for i, media_item in enumerate(media_input):
+                try:
+                    print(f"DEBUG: Uploading image {i+1}/{total_images}: {media_item['originalSource']}")
+                    
+                    media_variables = {
+                        "productId": product_id,
+                        "media": [media_item]  # Upload one at a time
+                    }
+                    
+                    result = await client.execute_query(media_mutation, media_variables)
+                    
+                    if result and "data" in result:
+                        media_data = result["data"].get("productCreateMedia", {})
+                        media_errors = media_data.get("mediaUserErrors", [])
+                        
+                        if media_errors:
+                            print(f"   ❌ Error uploading image {i+1}: {media_errors}")
+                            continue
+                        
+                        created_media = media_data.get("media", [])
+                        if created_media:
+                            media_info = created_media[0]
+                            media_id = media_info.get("id")
+                            status = media_info.get("status", "unknown")
+                            
+                            print(f"   ✅ Image {i+1} uploaded: {media_id} (status: {status})")
+                            
+                            # Check if image details are available
+                            image_data = media_info.get("image")
+                            if image_data and image_data.get("src"):
+                                print(f"      URL: {image_data['src']}")
+                            else:
+                                print(f"      Image processing in background...")
+                            
+                            successful_uploads += 1
+                        else:
+                            print(f"   ❌ No media returned for image {i+1}")
+                    else:
+                        print(f"   ❌ API error for image {i+1}: {result}")
+                        
+                    # Small delay between uploads to avoid rate limiting
+                    if i < total_images - 1:  # Don't delay after the last upload
+                        await asyncio.sleep(0.5)
+                        
+                except Exception as e:
+                    print(f"   ❌ Exception uploading image {i+1}: {str(e)}")
+                    continue
+            
+            print(f"✅ Successfully uploaded {successful_uploads}/{total_images} images")
+            
+            # Wait a moment for processing, then verify uploads
+            if successful_uploads > 0:
+                print("⏳ Waiting for image processing...")
+                await asyncio.sleep(2)  # Give Shopify time to process
+                
+                # Verify the uploads
+                verified_count = await self._verify_product_images(client, product_id, successful_uploads)
+                print(f"🔍 Verified {verified_count}/{successful_uploads} images are accessible")
+                
+                return verified_count > 0
+            
+            return successful_uploads > 0
+            
+        except Exception as e:
+            print(f"Error adding images to product: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    async def _verify_product_images(self, client: ShopifyGraphQLClient, product_id: str, expected_count: int) -> int:
+        """Verify that images have been successfully processed and are accessible"""
+        try:
+            verification_query = """
+            query getProductImages($id: ID!) {
+                product(id: $id) {
+                    images(first: 10) {
+                        edges {
+                            node {
+                                id
+                                src
+                                altText
+                            }
+                        }
+                    }
+                    media(first: 10) {
+                        edges {
+                            node {
+                                ... on MediaImage {
+                                    id
+                                    status
+                                    image {
+                                        src
+                                        altText
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """
+            
+            result = await client.execute_query(verification_query, {"id": product_id})
+            
+            if result and "data" in result and result["data"]["product"]:
+                product_data = result["data"]["product"]
+                
+                # Count accessible images
+                images = product_data.get("images", {}).get("edges", [])
+                accessible_images = len([img for img in images if img["node"].get("src")])
+                
+                # Also check media status
+                media = product_data.get("media", {}).get("edges", [])
+                ready_media = len([
+                    m for m in media 
+                    if m["node"].get("status") == "READY" and 
+                       m["node"].get("image", {}) and 
+                       m["node"]["image"].get("src")
+                ])
+                
+                return max(accessible_images, ready_media)
+            
+            return 0
+            
+        except Exception as e:
+            print(f"Error verifying images: {str(e)}")
+            return 0

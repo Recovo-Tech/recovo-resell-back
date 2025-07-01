@@ -29,12 +29,12 @@ class TenantService:
         tenant = self.get_tenant_by_domain(host)
         if tenant:
             return tenant
-
+        
         # Then try subdomain (extract subdomain from host)
         if "." in host:
             subdomain = host.split(".")[0]
             return self.get_tenant_by_subdomain(subdomain)
-
+        
         return None
 
     def create_tenant(self, tenant_data: TenantCreate) -> Tenant:
@@ -45,9 +45,7 @@ class TenantService:
         self.db.refresh(tenant)
         return tenant
 
-    def update_tenant(
-        self, tenant_id: uuid.UUID, update_data: TenantUpdate
-    ) -> Optional[Tenant]:
+    def update_tenant(self, tenant_id: uuid.UUID, update_data: TenantUpdate) -> Optional[Tenant]:
         """Update a tenant"""
         tenant = self.get_tenant_by_id(tenant_id)
         if not tenant:

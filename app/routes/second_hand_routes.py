@@ -282,7 +282,7 @@ async def search_products(
 
 
 # Admin routes (require admin authentication)
-@router.post("/admin/products/{product_id}/approve", response_model=SecondHandProduct)
+@router.post("/admin/products/{product_id}/approve")
 async def approve_product(
     product_id: int,
     current_user: User = Depends(admin_required),  # Use admin dependency
@@ -292,11 +292,33 @@ async def approve_product(
     """Approve a second-hand product for sale and publish to Shopify (admin only)"""
     service = SecondHandProductService(db)
 
-    product = await service.approve_product(product_id, current_tenant.id)
+    result = await service.approve_product(product_id, current_tenant.id)
 
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
-        )
+    if not result["success"]:
+        if result["error_code"] == "PRODUCT_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Product not found"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=result["error"]
+            )
 
-    return product
+    # Return response with appropriate warnings
+    response = {
+        "success": True,
+        "product": result["product"],
+        "message": result.get("message", "Product approved successfully")
+    }
+    
+    # Include warnings if any
+    if "warning" in result:
+        response["warning"] = result["warning"]
+        response["error_code"] = result.get("error_code")
+    
+    if "shopify_product_id" in result:
+        response["shopify_product_id"] = result["shopify_product_id"]
+
+    return response

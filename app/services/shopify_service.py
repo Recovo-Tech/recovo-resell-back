@@ -10,11 +10,6 @@ class ShopifyGraphQLClient:
 
     def __init__(self, shop_domain: str, access_token: Optional[str] = None):
         print(f"DEBUG: Raw shop_domain input = '{shop_domain}'")
-        
-        # Validate shop_domain is not None or empty
-        if not shop_domain:
-            raise ValueError("shop_domain cannot be None or empty. Please configure Shopify settings for this tenant.")
-        
         # Clean the domain by removing any existing protocol
         clean_domain = shop_domain.replace("https://", "").replace("http://", "")
 
@@ -64,7 +59,11 @@ class ShopifyGraphQLClient:
                         id
                         title
                         handle
+                        description
+                        descriptionHtml
                         status
+                        productType
+                        vendor
                         images(first: 1) {
                             edges {
                                 node {
@@ -82,6 +81,8 @@ class ShopifyGraphQLClient:
                                     barcode
                                     title
                                     price
+                                    weight
+                                    weightUnit
                                 }
                             }
                         }
@@ -109,7 +110,11 @@ class ShopifyGraphQLClient:
                         id
                         title
                         handle
+                        description
+                        descriptionHtml
                         status
+                        productType
+                        vendor
                         images(first: 1) {
                             edges {
                                 node {
@@ -127,6 +132,8 @@ class ShopifyGraphQLClient:
                                     barcode
                                     title
                                     price
+                                    weight
+                                    weightUnit
                                 }
                             }
                         }
@@ -135,7 +142,7 @@ class ShopifyGraphQLClient:
             }
         }
         """
-
+        
         variables = {"query": f"barcode:{barcode}"}
         result = await self.execute_query(query, variables)
 
@@ -245,12 +252,32 @@ class ShopifyProductVerificationService:
                     "shopify_id": product["id"],
                     "title": product["title"],
                     "handle": product["handle"],
+                    "description": product.get("description", ""),
+                    "descriptionHtml": product.get("descriptionHtml", ""),
+                    "productType": product.get("productType", ""),
+                    "vendor": product.get("vendor", ""),
                     "first_image": (
                         product.get("images", {})
                         .get("edges", [{}])[0]
                         .get("node", {})
                         .get("url")
                         if product.get("images", {}).get("edges")
+                        else None
+                    ),
+                    "weight": (
+                        product.get("variants", {})
+                        .get("edges", [{}])[0]
+                        .get("node", {})
+                        .get("weight")
+                        if product.get("variants", {}).get("edges")
+                        else None
+                    ),
+                    "weightUnit": (
+                        product.get("variants", {})
+                        .get("edges", [{}])[0]
+                        .get("node", {})
+                        .get("weightUnit")
+                        if product.get("variants", {}).get("edges")
                         else None
                     ),
                     "variants": [
@@ -260,6 +287,8 @@ class ShopifyProductVerificationService:
                             "barcode": variant["node"]["barcode"],
                             "title": variant["node"]["title"],
                             "price": variant["node"]["price"],
+                            "weight": variant["node"].get("weight"),
+                            "weightUnit": variant["node"].get("weightUnit"),
                         }
                         for variant in product.get("variants", {}).get("edges", [])
                     ],
