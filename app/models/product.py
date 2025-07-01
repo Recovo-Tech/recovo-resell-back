@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -20,16 +21,25 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True
+    )
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
     stock = Column(Integer, nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant")
 
 
 class SecondHandProduct(Base):
     __tablename__ = "second_hand_products"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True
+    )
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
@@ -41,7 +51,7 @@ class SecondHandProduct(Base):
     shopify_product_id = Column(
         String(50), nullable=True
     )  # Shopify product ID for verification
-    seller_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     is_verified = Column(
         Boolean, default=False
     )  # Whether the product SKU/barcode is verified
@@ -52,6 +62,7 @@ class SecondHandProduct(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
+    tenant = relationship("Tenant")
     seller = relationship("User", back_populates="second_hand_products")
     images = relationship(
         "SecondHandProductImage", back_populates="product", cascade="all, delete-orphan"

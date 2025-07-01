@@ -3,6 +3,8 @@ from .cart_item import CartItemRepository
 from .discount import DiscountRepository
 from .product import ProductRepository
 from .user import UserRepository
+from .tenant import TenantRepository
+
 
 __all__ = [
     "CartRepository",
@@ -10,4 +12,5 @@ __all__ = [
     "ProductRepository",
     "UserRepository",
     "DiscountRepository",
+    "TenantRepository",
 ]

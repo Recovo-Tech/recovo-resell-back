@@ -58,7 +58,7 @@ jobs:
             # Set all environment variables needed by your app
             # These are pulled from the correct GitHub Environment (stage or prod)
             export DOCKER_IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-api
+            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-resell-api
 
             # --- Application Environment Variables ---
             export POSTGRES_DB=${{ secrets.POSTGRES_DB }}
@@ -71,6 +71,9 @@ jobs:
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+
+            export SHOPIFY_APP_URL=${{ secrets.SHOPIFY_APP_URL }}
+            export SHOPIFY_ACCESS_TOKEN=${{ secrets.SHOPIFY_ACCESS_TOKEN }}
 
             
             # For non-secret variables stored in GitHub, use vars.
@@ -106,7 +109,7 @@ jobs:
             # Set all environment variables needed by your app
             # These are pulled from the correct GitHub Environment (stage or prod)
             export DOCKER_IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
-            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-api
+            export DOCKER_IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/recovo-resell-api
 
             # --- Application Environment Variables ---
             export POSTGRES_DB=${{ secrets.POSTGRES_DB }}
@@ -120,7 +123,10 @@ jobs:
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
 
-            
+            export SHOPIFY_APP_URL=${{ secrets.SHOPIFY_APP_URL }}
+            export SHOPIFY_ACCESS_TOKEN=${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+
+
             # For non-secret variables stored in GitHub, use vars.
             export AWS_REGION=${{ vars.AWS_REGION }}
             export ACCESS_TOKEN_EXPIRE_MINUTES=${{ vars.ACCESS_TOKEN_EXPIRE_MINUTES }}

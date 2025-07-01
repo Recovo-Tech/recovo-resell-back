@@ -8,18 +8,31 @@ from app.config.shopify_config import shopify_settings
 class ShopifyGraphQLClient:
     """Shopify GraphQL API client for product verification and management"""
 
-    def __init__(self, shop_domain: str, access_token: str):
-        self.shop_domain = shop_domain
-        self.access_token = access_token
+    def __init__(self, shop_domain: str, access_token: Optional[str] = None):
+        print(f"DEBUG: Raw shop_domain input = '{shop_domain}'")
+        # Clean the domain by removing any existing protocol
+        clean_domain = shop_domain.replace("https://", "").replace("http://", "")
+
+        self.shop_domain = clean_domain  # Store clean domain
+        self.access_token = access_token or shopify_settings.shopify_access_token
         self.api_version = shopify_settings.shopify_api_version
+
         self.base_url = (
-            f"https://{shop_domain}/admin/api/{self.api_version}/graphql.json"
+            f"https://{clean_domain}/admin/api/{self.api_version}/graphql.json"
         )
 
     async def execute_query(
         self, query: str, variables: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute GraphQL query against Shopify API"""
+        print(f"DEBUG: Attempting to connect to: {self.base_url}")
+        print(f"DEBUG: Shop domain: {self.shop_domain}")
+        print(
+            f"DEBUG: Access token: {self.access_token[:10]}..."
+            if self.access_token
+            else "DEBUG: No access token"
+        )
+
         headers = {
             "Content-Type": "application/json",
             "X-Shopify-Access-Token": self.access_token,
@@ -47,6 +60,15 @@ class ShopifyGraphQLClient:
                         title
                         handle
                         status
+                        images(first: 1) {
+                            edges {
+                                node {
+                                    id
+                                    url
+                                    altText
+                                }
+                            }
+                        }
                         variants(first: 10) {
                             edges {
                                 node {
@@ -83,6 +105,15 @@ class ShopifyGraphQLClient:
                         title
                         handle
                         status
+                        images(first: 1) {
+                            edges {
+                                node {
+                                    id
+                                    url
+                                    altText
+                                }
+                            }
+                        }
                         variants(first: 10) {
                             edges {
                                 node {
@@ -174,6 +205,12 @@ class ShopifyProductVerificationService:
             product = None
             verification_method = None
 
+            print(f"DEBUG: Starting verification with SKU: {sku}, Barcode: {barcode}")
+            print(f"DEBUG: Client shop_domain: {self.client.shop_domain}")
+            print(
+                f"DEBUG: Client access_token: {self.client.access_token[:10] if self.client.access_token else 'None'}..."
+            )
+
             # Try to verify by SKU first
             if sku:
                 product = await self.client.verify_product_by_sku(sku)
@@ -203,6 +240,14 @@ class ShopifyProductVerificationService:
                     "shopify_id": product["id"],
                     "title": product["title"],
                     "handle": product["handle"],
+                    "first_image": (
+                        product.get("images", {})
+                        .get("edges", [{}])[0]
+                        .get("node", {})
+                        .get("url")
+                        if product.get("images", {}).get("edges")
+                        else None
+                    ),
                     "variants": [
                         {
                             "id": variant["node"]["id"],

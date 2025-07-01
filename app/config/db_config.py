@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
 
 db_user_name = env.get("DATABASE_USERNAME", "postgres")
-db_password = env.get("DATABASE_PASSWORD", "someinsecurepw")
+db_password = env.get("DATABASE_PASSWORD")
 db_host = env.get("DATABASE_HOSTNAME", "localhost")
 db_port = env.get("DATABASE_PORT", "5432")
 db_name = env.get("DATABASE_NAME", "recovo")
