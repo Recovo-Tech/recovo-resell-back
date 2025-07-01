@@ -29,6 +29,7 @@ class SecondHandProductService:
         price: float,
         condition: str,
         original_sku: str,
+        size: str = None,
         barcode: Optional[str] = None,
         shop_domain: str = None,
         shopify_access_token: str = None,
@@ -68,6 +69,7 @@ class SecondHandProductService:
             name=name,
             description=description,
             price=price,
+            size=size,
             condition=condition,
             original_sku=original_sku,
             barcode=barcode,
@@ -387,6 +389,14 @@ class SecondHandProductService:
                     "vendor": vendor,
                     "productType": product_type,
                     "status": "ACTIVE",
+                    "productOptions": [
+                            {
+                                "name": "Size",
+                                "values": [
+                                { "name": product.size if product.size else None }, 
+                                ]
+                            }
+                            ],
                     "tags": ["second-hand", product.condition, "marketplace", "pre-owned"],
                     "variants": [
                         {
@@ -399,7 +409,7 @@ class SecondHandProductService:
                             "weight": weight_value,
                             "weightUnit": weight_unit,
                             "requiresShipping": True,
-                            "taxable": True
+                            "taxable": True,
                         }
                     ]
                 }

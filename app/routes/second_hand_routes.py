@@ -65,6 +65,7 @@ async def create_second_hand_product(
     condition: str = Form(...),
     original_sku: str = Form(...),
     barcode: str = Form(None),
+    size: str = Form(None),
     files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     current_tenant: Tenant = Depends(get_current_tenant),
@@ -107,6 +108,7 @@ async def create_second_hand_product(
         condition=condition,
         original_sku=original_sku,
         barcode=barcode,
+        size=size,
         shop_domain=current_tenant.shopify_app_url,  # Use tenant config
         shopify_access_token=current_tenant.shopify_access_token,  # Use tenant config
     )
@@ -274,6 +276,7 @@ async def search_products(
         tenant_id=current_tenant.id,
         query=filters.query,
         condition=filters.condition,
+        size=filters.size,
         min_price=filters.min_price,
         max_price=filters.max_price,
         skip=filters.skip,
