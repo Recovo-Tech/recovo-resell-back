@@ -20,8 +20,8 @@ def register_user(
     auth_service=Depends(get_auth_service),
     tenant_service=Depends(get_tenant_service),
 ):
-    # Validate tenant exists and is active by name/subdomain
-    tenant = tenant_service.get_tenant_by_subdomain(user.tenant_name)
+    # Validate tenant exists and is active by name
+    tenant = tenant_service.get_tenant_by_name(user.tenant_name)
     if not tenant or not tenant.is_active:
         raise HTTPException(
             status_code=400, 

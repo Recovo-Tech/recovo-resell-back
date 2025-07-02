@@ -62,7 +62,10 @@ async def tenant_middleware(request: Request, call_next):
         if not tenant_context.tenant:
             # For registration and other public endpoints, use default tenant
             # This allows unauthenticated requests to proceed
-            tenant = tenant_service.get_tenant_by_subdomain("default")
+            tenant = tenant_service.get_tenant_by_name("Default Tenant")  # Look by name
+            if not tenant:
+                # Fallback to subdomain if name doesn't work
+                tenant = tenant_service.get_tenant_by_subdomain("default")
             if tenant and tenant.is_active:
                 tenant_context.tenant = tenant
     

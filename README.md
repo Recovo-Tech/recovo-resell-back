@@ -275,7 +275,7 @@ When testing the API with tools like Postman:
      "email": "test@example.com", 
      "password": "password123",
      "password_confirmation": "password123",
-     "tenant_name": "default",
+     "tenant_name": "Default Tenant",
      "name": "Test",
      "surname": "User"
    }
@@ -319,7 +319,7 @@ Example response:
 ]
 ```
 
-Use the `subdomain` field as the `tenant_name` in your registration requests.
+Use the `name` field as the `tenant_name` in your registration requests.
 
 ## Usage Example
 

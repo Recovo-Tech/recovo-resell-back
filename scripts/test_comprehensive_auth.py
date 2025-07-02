@@ -28,7 +28,7 @@ def comprehensive_tenant_auth_test():
         "email": test_email,
         "password": test_password,
         "password_confirmation": test_password,
-        "tenant_name": "default",  # Using tenant name instead of UUID!
+        "tenant_name": "Default Tenant",  # Using tenant name instead of UUID!
         "name": "Test",
         "surname": "User"
     }

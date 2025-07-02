@@ -37,6 +37,10 @@ class TenantService:
         
         return None
 
+    def get_tenant_by_name(self, name: str) -> Optional[Tenant]:
+        """Get a tenant by name"""
+        return self.db.query(Tenant).filter(Tenant.name == name).first()
+
     def create_tenant(self, tenant_data: TenantCreate) -> Tenant:
         """Create a new tenant"""
         tenant = Tenant(**tenant_data.dict())

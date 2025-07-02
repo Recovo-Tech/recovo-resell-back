@@ -21,7 +21,7 @@ def test_tenant_name_registration():
     test_username = f"testuser_{uuid4().hex[:8]}"
     test_email = f"{test_username}@example.com"
     test_password = "testpass123"
-    tenant_name = "default"
+    tenant_name = "Default Tenant"  # Use actual tenant name
     
     register_data = {
         "username": test_username,

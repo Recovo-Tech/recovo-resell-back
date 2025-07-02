@@ -18,7 +18,7 @@ def test_tenant_from_token():
     print("=" * 50)
     
     # Step 1: Use default tenant name (much simpler!)
-    tenant_name = "default"
+    tenant_name = "Default Tenant"  # Use the actual tenant name
     print(f"✅ Using tenant name: {tenant_name}")
     
     # Step 2: Register a test user with tenant_name
