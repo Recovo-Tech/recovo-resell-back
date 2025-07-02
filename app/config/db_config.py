@@ -1,18 +1,20 @@
 import logging
-from os import environ as env
-
+import os 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
+from dotenv import load_dotenv
+# Load environment variables from .env file
 
-db_user_name = env.get("DATABASE_USERNAME", "postgres")
-db_password = env.get("DATABASE_PASSWORD")
-db_host = env.get("DATABASE_HOSTNAME", "localhost")
-db_port = env.get("DATABASE_PORT", "5432")
-db_name = env.get("DATABASE_NAME", "recovo")
-db_pool_size = int(env.get("DATABASE_POOL_SIZE", 10))
-db_pool_size_overflow = int(env.get("DATABASE_POOL_SIZE_OVERFLOW", 10))
+load_dotenv()
+db_user_name = os.getenv("DATABASE_USERNAME", "postgres")
+db_password = os.getenv("DATABASE_PASSWORD")
+db_host = os.getenv("DATABASE_HOSTNAME", "localhost")
+db_port = os.getenv("DATABASE_PORT", "5432")
+db_name = os.getenv("DATABASE_NAME", "recovo")
+db_pool_size = int(os.getenv("DATABASE_POOL_SIZE", 10))
+db_pool_size_overflow = int(os.getenv("DATABASE_POOL_SIZE_OVERFLOW", 10))
 
 
 SQLALCHEMY_DATABASE_URL = (

@@ -21,8 +21,13 @@ def register_user(
     user_service=Depends(get_user_service),
     auth_service=Depends(get_auth_service),
 ):
+    
+    if user.password != user.password_confirmation:
+        raise HTTPException(
+            status_code=400, detail="Password and confirmation do not match"
+        )
     new_user = user_service.create_user(
-        user.username, user.email, user.password, current_tenant.id
+        user.username, user.email, user.password, current_tenant.id, user.name, user.surname
     )
     # Create token data with user ID and tenant ID as strings
     token_data = {
