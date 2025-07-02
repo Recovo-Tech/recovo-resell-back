@@ -80,11 +80,24 @@ UPLOAD_DIRECTORY=uploads/second_hand_products
 
 ### 3. Install Dependencies
 
+#### Windows
 ```bash
 # Activate virtual environment
 .\var\venv\Scripts\activate
 
-# Install requirements
+# Install dependencies
+pip install -r requirements.txt
+```
+
+#### Linux/MacOS
+```bash
+# Create virtual environment (if not exists)
+python3 -m venv venv
+
+# Activate virtual environment
+source var/venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
