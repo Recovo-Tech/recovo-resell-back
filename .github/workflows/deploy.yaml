@@ -82,6 +82,7 @@ jobs:
             export DATABASE_POOL_SIZE_OVERFLOW=${{ vars.DATABASE_POOL_SIZE_OVERFLOW }}
             export DATABASE_HOSTNAME=db # This is hardcoded as it's an internal docker hostname
             export DATABASE_PORT=5432
+            export DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
 
             # Navigate to your app directory
             cd /root/app
@@ -133,6 +134,7 @@ jobs:
             export DATABASE_POOL_SIZE_OVERFLOW=${{ vars.DATABASE_POOL_SIZE_OVERFLOW }}
             export DATABASE_HOSTNAME=db # This is hardcoded as it's an internal docker hostname
             export DATABASE_PORT=5432
+            export DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
 
             # Navigate to your app directory
             cd /root/app
