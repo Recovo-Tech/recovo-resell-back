@@ -80,11 +80,26 @@ UPLOAD_DIRECTORY=uploads/second_hand_products
 
 ### 3. Install Dependencies
 
+#### Windows
+
 ```bash
 # Activate virtual environment
 .\var\venv\Scripts\activate
 
-# Install requirements
+# Install dependencies
+pip install -r requirements.txt
+```
+
+#### Linux/MacOS
+
+```bash
+# Create virtual environment (if not exists)
+python3 -m venv var/venv
+
+# Activate virtual environment
+source var/venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -115,6 +130,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `POST /second-hand/verify-product` - Verify if a product exists in your Shopify store by SKU and/or barcode.
 
 **Request Body:**
+
 ```json
 {
   "sku": "ABC123",         // optional, string
@@ -123,6 +139,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Response Example:**
+
 ```json
 {
   "is_verified": true,
