@@ -40,6 +40,25 @@ class AuthService:
             "role": user.role,
         }
 
+    def authenticate_user_global(
+        self, username: str, password: str
+    ) -> Optional[Dict[str, Any]]:
+        """Authenticate user globally across all tenants"""
+        # Look for user by username (without tenant restriction)
+        user = self.user_service.get_user_by_username(username)
+        if not user:
+            return None
+        if not self.verify_password(password, user.hashed_password):
+            return None
+
+        return {
+            "id": str(user.id),  # Convert UUID to string for JSON serialization
+            "tenant_id": str(user.tenant_id),  # Include tenant_id in user data
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+        }
+
     def create_access_token(
         self, data: dict, expires_delta: Optional[timedelta] = None
     ) -> str:

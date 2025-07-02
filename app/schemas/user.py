@@ -14,6 +14,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     password_confirmation: str
+    tenant_name: str  # Use tenant name/subdomain instead of UUID
     
 
 
@@ -27,6 +28,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: UUID
+    tenant_id: UUID
     role: str
     name: Optional[str] = None
     surname: Optional[str] = None

@@ -1,5 +1,7 @@
 # app/middleware/tenant_middleware.py
 
+import os
+import jwt
 from fastapi import Request, HTTPException, status
 from sqlalchemy.orm import Session
 from app.config.db_config import get_db
@@ -22,41 +24,46 @@ def get_current_tenant() -> Tenant:
     if not tenant_context.tenant:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No tenant context found. Please ensure request includes proper domain/subdomain."
+            detail="No tenant context found. This might be an unauthenticated request."
         )
     return tenant_context.tenant
 
 
 async def tenant_middleware(request: Request, call_next):
-    """Middleware to detect and set tenant context"""
+    """Middleware to detect and set tenant context from JWT token"""
     # Reset tenant context for each request
     tenant_context.tenant = None
-    
-    # Get host from request
-    host = request.headers.get("host", "")
-    
-    # Remove port if present
-    if ":" in host:
-        host = host.split(":")[0]
     
     # Get tenant from database
     db: Session = next(get_db())
     try:
         tenant_service = TenantService(db)
-        tenant = tenant_service.get_tenant_by_host(host)
         
-        if tenant and tenant.is_active:
-            tenant_context.tenant = tenant
-        elif not host.startswith("localhost") and not host.startswith("127.0.0.1"):
-            # For non-localhost requests, require tenant
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Tenant not found for domain: {host}"
-            )
-        else:
-            # For localhost/development, use default tenant
+        # Try to get tenant from JWT token first
+        authorization = request.headers.get("authorization")
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ")[1]
+            try:
+                # Decode JWT to get tenant_id (without verification for middleware)
+                secret_key = os.getenv("SECRET_KEY", "your-secret-key")
+                algorithm = os.getenv("ALGORITHM", "HS256")
+                payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+                tenant_id = payload.get("tenant_id")
+                
+                if tenant_id:
+                    tenant = tenant_service.get_tenant_by_id(tenant_id)
+                    if tenant and tenant.is_active:
+                        tenant_context.tenant = tenant
+            except jwt.InvalidTokenError:
+                # Token is invalid, continue without tenant (will be handled by auth)
+                pass
+        
+        # If no tenant from token, check for public endpoints that might need default tenant
+        if not tenant_context.tenant:
+            # For registration and other public endpoints, use default tenant
+            # This allows unauthenticated requests to proceed
             tenant = tenant_service.get_tenant_by_subdomain("default")
-            if tenant:
+            if tenant and tenant.is_active:
                 tenant_context.tenant = tenant
     
     finally:
