@@ -1,6 +1,7 @@
 import bcrypt
 from fastapi import HTTPException
 from uuid import UUID
+from typing import Optional
 
 from app.models.user import User
 from app.repositories import UserRepository
@@ -29,17 +30,10 @@ class UserService:
         return self.repo.get_by_email_and_tenant(email, tenant_id)
 
     def create_user(
-        self,
-        username: str,
-        email: str,
-        password: str,
-        tenant_id: UUID,
-        role: str = "client",
+        self, username: str, email: str,  password: str, tenant_id: UUID, name: Optional[str] = None, surname: Optional[str] = None, role: str = "client"
     ):
         # Check if username/email exists within this tenant
-        existing_user = self.repo.get_by_username_or_email_and_tenant(
-            username, email, tenant_id
-        )
+        existing_user = self.repo.get_by_username_or_email_and_tenant(username, email, tenant_id)
         if existing_user:
             raise HTTPException(
                 status_code=400, detail="Username or email already in use"
@@ -51,6 +45,8 @@ class UserService:
         new_user = User(
             username=username,
             email=email,
+            name=name,
+            surname=surname,
             hashed_password=hashed,
             role=role or "client",
             tenant_id=tenant_id,

@@ -6,8 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
 from app.models.tenant import Tenant
-from app.middleware.tenant_middleware import get_current_tenant
-from app.dependencies import get_auth_service, get_user_service
+from app.dependencies import get_auth_service, get_user_service, get_tenant_service
 from app.schemas.auth import LoginRequest, RegisterResponse, Token, LoginResponse
 from app.schemas.user import UserCreate
 
@@ -17,12 +16,24 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @router.post("/register", response_model=RegisterResponse)
 def register_user(
     user: UserCreate,
-    current_tenant: Tenant = Depends(get_current_tenant),
     user_service=Depends(get_user_service),
     auth_service=Depends(get_auth_service),
+    tenant_service=Depends(get_tenant_service),
 ):
+    # Validate tenant exists and is active by name
+    tenant = tenant_service.get_tenant_by_name(user.tenant_name)
+    if not tenant or not tenant.is_active:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid tenant name '{user.tenant_name}' or tenant is not active"
+        )
+    
+    if user.password != user.password_confirmation:
+        raise HTTPException(
+            status_code=400, detail="Password and confirmation do not match"
+        )
     new_user = user_service.create_user(
-        user.username, user.email, user.password, current_tenant.id
+        user.username, user.email, user.password, tenant.id, user.name, user.surname
     )
     # Create token data with user ID and tenant ID as strings
     token_data = {
@@ -44,18 +55,20 @@ def register_user(
 @router.post("/login", response_model=LoginResponse)
 def login(
     login_request: LoginRequest,
-    current_tenant: Tenant = Depends(get_current_tenant),
     auth_service=Depends(get_auth_service),
-):
-    user = auth_service.authenticate_user(
-        login_request.username, login_request.password, current_tenant.id
+):  
+    # For login, we need to search across all tenants first, then validate
+    user_data = auth_service.authenticate_user_global(
+        login_request.username, login_request.password
     )
-    if not user:
+    if not user_data:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
+    
+    # user_data is already a dict with the token data we need
     access_token = auth_service.create_access_token(
-        data=user, expires_delta=timedelta(days=1)
+        data=user_data, expires_delta=timedelta(days=1)
     )
     return {
-        "user": user,
+        "user": user_data,  # user_data is already in the correct format
         "token": {"access_token": access_token, "token_type": "bearer"},
     }

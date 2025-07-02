@@ -32,16 +32,29 @@ async def verify_product(
     db: Session = Depends(get_db),
 ):
     """Verify if a product with given SKU/barcode exists in the Shopify store for current tenant"""
+    
+    # Check if tenant has Shopify configuration
+    if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Shopify integration not configured for this tenant. Please contact your administrator."
+        )
+    
     # Use tenant-specific Shopify config
-    verification_service = ShopifyProductVerificationService(
-        current_tenant.shopify_app_url, current_tenant.shopify_access_token
-    )
+    try:
+        verification_service = ShopifyProductVerificationService(
+            current_tenant.shopify_app_url, current_tenant.shopify_access_token
+        )
 
-    result = await verification_service.verify_product_eligibility(
-        sku=verification_request.sku, barcode=verification_request.barcode
-    )
+        result = await verification_service.verify_product_eligibility(
+            sku=verification_request.sku, barcode=verification_request.barcode
+        )
 
-    return ProductVerificationResponse(**result)
+        return ProductVerificationResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error verifying product: {str(e)}")
 
 
 @router.post("/products", response_model=SecondHandProduct)
@@ -52,6 +65,7 @@ async def create_second_hand_product(
     condition: str = Form(...),
     original_sku: str = Form(...),
     barcode: str = Form(None),
+    size: str = Form(None),
     files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     current_tenant: Tenant = Depends(get_current_tenant),
@@ -94,6 +108,7 @@ async def create_second_hand_product(
         condition=condition,
         original_sku=original_sku,
         barcode=barcode,
+        size=size,
         shop_domain=current_tenant.shopify_app_url,  # Use tenant config
         shopify_access_token=current_tenant.shopify_access_token,  # Use tenant config
     )
@@ -261,6 +276,7 @@ async def search_products(
         tenant_id=current_tenant.id,
         query=filters.query,
         condition=filters.condition,
+        size=filters.size,
         min_price=filters.min_price,
         max_price=filters.max_price,
         skip=filters.skip,
@@ -269,7 +285,7 @@ async def search_products(
 
 
 # Admin routes (require admin authentication)
-@router.post("/admin/products/{product_id}/approve", response_model=SecondHandProduct)
+@router.post("/admin/products/{product_id}/approve")
 async def approve_product(
     product_id: int,
     current_user: User = Depends(admin_required),  # Use admin dependency
@@ -279,11 +295,33 @@ async def approve_product(
     """Approve a second-hand product for sale and publish to Shopify (admin only)"""
     service = SecondHandProductService(db)
 
-    product = await service.approve_product(product_id, current_tenant.id)
+    result = await service.approve_product(product_id, current_tenant.id)
 
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
-        )
+    if not result["success"]:
+        if result["error_code"] == "PRODUCT_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Product not found"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=result["error"]
+            )
 
-    return product
+    # Return response with appropriate warnings
+    response = {
+        "success": True,
+        "product": result["product"],
+        "message": result.get("message", "Product approved successfully")
+    }
+    
+    # Include warnings if any
+    if "warning" in result:
+        response["warning"] = result["warning"]
+        response["error_code"] = result.get("error_code")
+    
+    if "shopify_product_id" in result:
+        response["shopify_product_id"] = result["shopify_product_id"]
+
+    return response

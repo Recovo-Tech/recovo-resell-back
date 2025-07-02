@@ -206,6 +206,17 @@ def upgrade() -> None:
         sa.Column("original_sku", sa.String(length=100), nullable=False),
         sa.Column("barcode", sa.String(length=100), nullable=True),
         sa.Column("shopify_product_id", sa.String(length=50), nullable=True),
+        # Weight fields
+        sa.Column("weight", sa.Float(), nullable=True),
+        sa.Column("weight_unit", sa.String(length=20), nullable=True),
+        # Size field
+        sa.Column("size", sa.String(length=50), nullable=True),
+        # Original product information fields
+        sa.Column("original_title", sa.String(length=200), nullable=True),
+        sa.Column("original_description", sa.Text(), nullable=True),
+        sa.Column("original_product_type", sa.String(length=100), nullable=True),
+        sa.Column("original_vendor", sa.String(length=100), nullable=True),
+        # User and status fields
         sa.Column("seller_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("is_verified", sa.Boolean(), nullable=True, server_default='false'),
         sa.Column("is_approved", sa.Boolean(), nullable=True, server_default='false'),

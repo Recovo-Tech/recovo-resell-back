@@ -21,14 +21,20 @@ class User(Base):
     )
     username = Column(
         String(50), nullable=False
-    )  # Removed unique=True since usernames are unique per tenant
+    )
+    name = Column(
+        String(100), nullable=True
+    )
+    surname = Column(
+        String(100), nullable=True
+    )
     email = Column(
         String(100), nullable=False
-    )  # Removed unique=True since emails are unique per tenant
+    )
     hashed_password = Column(String(200), nullable=False)
-    role = Column(String(20), nullable=False, default="client")  # 'admin' or 'client'
+    role = Column(String(20), nullable=False, default="client")
 
-    # Relationships
+    
     tenant = relationship("Tenant")
     carts = relationship("Cart", back_populates="user")
     second_hand_products = relationship("SecondHandProduct", back_populates="seller")

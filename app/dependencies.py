@@ -15,6 +15,7 @@ from app.services import (
     ProductService,
     UserService,
 )
+from app.services.tenant_service import TenantService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -22,7 +23,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
-    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     auth_service = AuthService(db)
     payload = auth_service.decode_access_token(token)
@@ -35,39 +35,27 @@ def get_current_user(
     user_id = payload.get("id")
     tenant_id = payload.get("tenant_id")
 
-    if user_id is None:
+    if user_id is None or tenant_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token payload missing user id",
+            detail="Token payload missing user id or tenant id",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Verify tenant_id in token matches current tenant
-    if tenant_id and str(tenant_id) != str(current_tenant.id):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token tenant mismatch",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Convert user_id to UUID if it's not already
-    if not isinstance(user_id, UUID):
-        user_id = UUID(str(user_id))
-
+    # Get user and verify they belong to the token's tenant
     user_service = UserService(db)
-    # Filter by tenant to ensure user belongs to current tenant
-    user = user_service.get_user_by_id_and_tenant(user_id, current_tenant.id)
+    user = user_service.get_user_by_id_and_tenant(UUID(user_id), UUID(tenant_id))
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or not authorized for this tenant",
+            detail="User not found or tenant mismatch",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     return user
 
 
 def admin_required(current_user=Depends(get_current_user)):
-    """Dependency to ensure the current user has admin role"""
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -103,3 +91,41 @@ def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
 
 def get_discount_service(db: Session = Depends(get_db)) -> DiscountService:
     return DiscountService(db)
+
+
+def get_tenant_service(db: Session = Depends(get_db)) -> TenantService:
+    return TenantService(db)
+
+
+def get_current_tenant_from_token(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> Tenant:
+    """Get current tenant directly from JWT token"""
+    auth_service = AuthService(db)
+    payload = auth_service.decode_access_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    tenant_id = payload.get("tenant_id")
+    if tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token payload missing tenant id",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    tenant_service = TenantService(db)
+    tenant = tenant_service.get_tenant_by_id(UUID(tenant_id))
+    if tenant is None or not tenant.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tenant not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return tenant

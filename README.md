@@ -81,6 +81,7 @@ UPLOAD_DIRECTORY=uploads/second_hand_products
 ### 3. Install Dependencies
 
 #### Windows
+
 ```bash
 # Activate virtual environment
 .\var\venv\Scripts\activate
@@ -90,9 +91,10 @@ pip install -r requirements.txt
 ```
 
 #### Linux/MacOS
+
 ```bash
 # Create virtual environment (if not exists)
-python3 -m venv venv
+python3 -m venv var/venv
 
 # Activate virtual environment
 source var/venv/bin/activate
@@ -128,6 +130,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `POST /second-hand/verify-product` - Verify if a product exists in your Shopify store by SKU and/or barcode.
 
 **Request Body:**
+
 ```json
 {
   "sku": "ABC123",         // optional, string
@@ -136,6 +139,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Response Example:**
+
 ```json
 {
   "is_verified": true,
@@ -242,6 +246,80 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `POST /webhooks/shopify/products/delete` — Handle product deletions from Shopify
 
 Each endpoint may require authentication and/or specific roles (admin/client). See the code and docstrings for detailed request/response formats and permissions.
+
+## Authentication & Multi-Tenancy
+
+The system uses a **token-based multi-tenant authentication** approach:
+
+### How It Works
+
+1. **User Registration**: Users must provide a `tenant_name` when registering. This associates them with a specific tenant (shop) using a friendly name instead of a UUID.
+
+2. **JWT Tokens**: Upon successful login, users receive a JWT token containing:
+   - `user_id`: The user's unique identifier
+   - `tenant_id`: The tenant they belong to (UUID in token for internal use)
+   - `username`, `email`, `role`: User information
+
+3. **Tenant Context**: The middleware extracts the tenant information from the JWT token, ensuring all operations are automatically scoped to the correct tenant.
+
+4. **API Access**: All authenticated API calls automatically work within the user's tenant context - no need to specify tenant in API calls.
+
+### Testing with Postman
+
+When testing the API with tools like Postman:
+
+1. **Register a User** (`POST /auth/register`):
+   ```json
+   {
+     "username": "testuser",
+     "email": "test@example.com", 
+     "password": "password123",
+     "password_confirmation": "password123",
+     "tenant_name": "Default Tenant",
+     "name": "Test",
+     "surname": "User"
+   }
+   ```
+
+2. **Login** (`POST /auth/login`):
+   ```json
+   {
+     "username": "testuser",
+     "password": "password123"
+   }
+   ```
+
+3. **Use the Token**: Include the returned token in the `Authorization` header:
+   ```
+   Authorization: Bearer your-jwt-token-here
+   ```
+
+4. **Access Protected Endpoints**: All API calls will automatically be scoped to the user's tenant.
+
+### Getting Available Tenant Names
+
+To see what tenant names are available for registration, you can query the admin endpoint:
+
+```bash
+# Get list of all tenants (shows name, subdomain, and status)
+curl -X GET "http://localhost:8000/admin/tenants"
+```
+
+Example response:
+```json
+[
+  {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "Default Store",
+    "subdomain": "default",
+    "host": "localhost:8000",
+    "is_active": true,
+    "created_at": "2025-01-01T00:00:00Z"
+  }
+]
+```
+
+Use the `name` field as the `tenant_name` in your registration requests.
 
 ## Usage Example
 

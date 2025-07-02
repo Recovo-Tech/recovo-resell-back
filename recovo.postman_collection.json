@@ -1761,6 +1761,175 @@
 		{
 			"name": "Shopify Webhooks",
 			"item": []
+		},
+		{
+			"name": "Tenant Management",
+			"item": [
+				{
+					"name": "Get Current Tenant",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{API_URL}}/admin/tenants/current",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8000",
+							"path": ["admin", "tenants", "current"]
+						},
+						"description": "Get information about the current tenant (detected from domain/subdomain)."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Current Tenant",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Tenant Name\",\n  \"shopify_app_url\": \"your-store.myshopify.com\",\n  \"shopify_api_key\": \"your-api-key\",\n  \"shopify_api_secret\": \"your-api-secret\",\n  \"shopify_access_token\": \"your-access-token\",\n  \"shopify_webhook_secret\": \"your-webhook-secret\",\n  \"shopify_scopes\": \"read_products,write_products,read_inventory\",\n  \"shopify_api_version\": \"2024-01\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{API_URL}}/admin/tenants/current",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8000",
+							"path": ["admin", "tenants", "current"]
+						},
+						"description": "Update current tenant information including Shopify configuration. Requires admin role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Tenants (Super Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{API_URL}}/admin/tenants/?skip=0&limit=100",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8000",
+							"path": ["admin", "tenants", ""],
+							"query": [
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "100"
+								}
+							]
+						},
+						"description": "Get all tenants in the system. Super admin only."
+					},
+					"response": []
+				},
+				{
+					"name": "Create New Tenant (Super Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"New Tenant\",\n  \"subdomain\": \"newtenant\",\n  \"domain\": \"newtenant.com\",\n  \"shopify_app_url\": \"newtenant-store.myshopify.com\",\n  \"shopify_api_key\": \"api-key\",\n  \"shopify_api_secret\": \"api-secret\",\n  \"shopify_access_token\": \"access-token\",\n  \"shopify_webhook_secret\": \"webhook-secret\",\n  \"shopify_scopes\": \"read_products,write_products\",\n  \"shopify_api_version\": \"2024-01\",\n  \"is_active\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{API_URL}}/admin/tenants/",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8000",
+							"path": ["admin", "tenants", ""]
+						},
+						"description": "Create a new tenant. Super admin only."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Tenant by ID (Super Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{API_URL}}/admin/tenants/{{tenant_id}}",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8000",
+							"path": ["admin", "tenants", "{{tenant_id}}"]
+						},
+						"description": "Get a specific tenant by ID. Super admin only. Set tenant_id variable with actual UUID."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Tenant by ID (Super Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Tenant Name\",\n  \"shopify_app_url\": \"updated-store.myshopify.com\",\n  \"is_active\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{API_URL}}/admin/tenants/{{tenant_id}}",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8000",
+							"path": ["admin", "tenants", "{{tenant_id}}"]
+						},
+						"description": "Update a specific tenant by ID. Super admin only. Set tenant_id variable with actual UUID."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Tenant (Super Admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{API_URL}}/admin/tenants/{{tenant_id}}",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8000",
+							"path": ["admin", "tenants", "{{tenant_id}}"]
+						},
+						"description": "Delete a tenant by ID. Super admin only. Set tenant_id variable with actual UUID."
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"auth": {
