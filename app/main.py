@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
+origins = []
+
 if os.getenv("ENV") == "local" or os.getenv("ENV") == "dev":
     origins = [
         "http://localhost:3000",
