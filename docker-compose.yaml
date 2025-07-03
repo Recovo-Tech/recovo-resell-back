@@ -36,5 +36,31 @@ services:
       - DATABASE_HOSTNAME=db
       - DATABASE_PASSWORD=${DATABASE_PASSWORD}
       - DATABASE_PORT=5432
+
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      # These two volumes are now shared with the certbot container
+      - certbot_data:/etc/letsencrypt
+      - webroot_data:/var/www/certbot
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+    command: /bin/sh -c "envsubst < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      # Mount the same shared volumes
+      - certbot_data:/etc/letsencrypt
+      - webroot_data:/var/www/certbot
+
 volumes:
   postgres_data:
+  certbot_data:
+  webroot_data:
