@@ -32,14 +32,14 @@ async def verify_product(
     db: Session = Depends(get_db),
 ):
     """Verify if a product with given SKU/barcode exists in the Shopify store for current tenant"""
-    
+
     # Check if tenant has Shopify configuration
     if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
         raise HTTPException(
             status_code=400,
-            detail="Shopify integration not configured for this tenant. Please contact your administrator."
+            detail="Shopify integration not configured for this tenant. Please contact your administrator.",
         )
-    
+
     # Use tenant-specific Shopify config
     try:
         verification_service = ShopifyProductVerificationService(
@@ -54,7 +54,9 @@ async def verify_product(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error verifying product: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error verifying product: {str(e)}"
+        )
 
 
 @router.post("/products", response_model=SecondHandProduct)
@@ -300,27 +302,25 @@ async def approve_product(
     if not result["success"]:
         if result["error_code"] == "PRODUCT_NOT_FOUND":
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="Product not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
             )
         else:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=result["error"]
+                status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"]
             )
 
     # Return response with appropriate warnings
     response = {
         "success": True,
         "product": result["product"],
-        "message": result.get("message", "Product approved successfully")
+        "message": result.get("message", "Product approved successfully"),
     }
-    
+
     # Include warnings if any
     if "warning" in result:
         response["warning"] = result["warning"]
         response["error_code"] = result.get("error_code")
-    
+
     if "shopify_product_id" in result:
         response["shopify_product_id"] = result["shopify_product_id"]
 

@@ -142,7 +142,7 @@ class ShopifyGraphQLClient:
             }
         }
         """
-        
+
         variables = {"query": f"barcode:{barcode}"}
         result = await self.execute_query(query, variables)
 

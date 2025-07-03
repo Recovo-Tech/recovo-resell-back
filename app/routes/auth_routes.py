@@ -25,10 +25,10 @@ def register_user(
     tenant = tenant_service.get_tenant_by_name(user.tenant_name)
     if not tenant or not tenant.is_active:
         raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid tenant name '{user.tenant_name}' or tenant is not active"
+            status_code=400,
+            detail=f"Invalid tenant name '{user.tenant_name}' or tenant is not active",
         )
-    
+
     if user.password != user.password_confirmation:
         raise HTTPException(
             status_code=400, detail="Password and confirmation do not match"
@@ -55,40 +55,38 @@ def register_user(
 
 @router.post("/login")
 async def login(
-    request: LoginRequest, 
-    auth_service = Depends(get_auth_service),
-    tenant_service: TenantService = Depends(get_tenant_service)
+    request: LoginRequest,
+    auth_service=Depends(get_auth_service),
+    tenant_service: TenantService = Depends(get_tenant_service),
 ):
     """Login endpoint that requires tenant_name for proper tenant isolation"""
     try:
         # First, validate that the tenant exists and is active
         tenant = tenant_service.get_tenant_by_name(request.tenant_name)
-        import ipdb; ipdb.set_trace()
         if not tenant or not tenant.is_active:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid tenant name '{request.tenant_name}' or tenant is not active"
+                detail=f"Invalid tenant name '{request.tenant_name}' or tenant is not active",
             )
-        
+
         # Authenticate user within the specific tenant
-        user = auth_service.authenticate_user(request.username, request.password, tenant.id)
+        user = auth_service.authenticate_user(
+            request.username, request.password, tenant.id
+        )
         if not user:
-            raise HTTPException(
-                status_code=401, 
-                detail="Invalid username or password"
-            )
-        
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+
         # Create JWT token with tenant context
-       
-        
-        
-        access_token = auth_service.create_access_token(data=user, expires_delta=timedelta(days=1))
-        
+
+        access_token = auth_service.create_access_token(
+            data=user, expires_delta=timedelta(days=1)
+        )
+
         return {
             "user": user,
             "token": {"access_token": access_token, "token_type": "bearer"},
-            }
-        
+        }
+
     except HTTPException:
         raise
     except Exception as e:

@@ -8,7 +8,7 @@ class BaseRepository:
 
     def get_all(self):
         return self.db.query(self.model).all()
-    
+
     def get_all_by(self, **kwargs):
         query = self.db.query(self.model)
         for key, value in kwargs.items():

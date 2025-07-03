@@ -1,10 +1,11 @@
 """Unified migration - Complete multi-tenant marketplace schema
 
 Revision ID: 001_unified_migration
-Revises: 
+Revises:
 Create Date: 2025-07-01 12:00:00.000000
 
 """
+
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
@@ -20,35 +21,35 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Create all tables for the multi-tenant marketplace."""
     import uuid
-    
+
     # Drop all existing tables first (handles both fresh installs and migrations from old schema)
     # This ensures a clean slate for both development and production deployments
     connection = op.get_bind()
-    
+
     # Drop tables if they exist (in reverse dependency order)
     tables_to_drop = [
-        'second_hand_product_images',
-        'cart_items', 
-        'second_hand_products',
-        'carts',
-        'products',
-        'discounts', 
-        'users',
-        'tenants'
+        "second_hand_product_images",
+        "cart_items",
+        "second_hand_products",
+        "carts",
+        "products",
+        "discounts",
+        "users",
+        "tenants",
     ]
-    
+
     for table in tables_to_drop:
         try:
             connection.execute(sa.text(f"DROP TABLE IF EXISTS {table} CASCADE"))
         except Exception:
             pass  # Ignore errors if table doesn't exist
-    
+
     # Drop enum types if they exist
     try:
         connection.execute(sa.text("DROP TYPE IF EXISTS cartstatus CASCADE"))
     except Exception:
         pass
-    
+
     # Create tenants table first (required for foreign keys)
     op.create_table(
         "tenants",
@@ -63,7 +64,7 @@ def upgrade() -> None:
         sa.Column("shopify_webhook_secret", sa.String(length=100), nullable=True),
         sa.Column("shopify_scopes", sa.String(length=500), nullable=True),
         sa.Column("shopify_api_version", sa.String(length=20), nullable=True),
-        sa.Column("is_active", sa.Boolean(), nullable=True, server_default='true'),
+        sa.Column("is_active", sa.Boolean(), nullable=True, server_default="true"),
         sa.Column("settings", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
@@ -86,7 +87,9 @@ def upgrade() -> None:
         sa.Column("username", sa.String(length=50), nullable=False),
         sa.Column("email", sa.String(length=100), nullable=False),
         sa.Column("hashed_password", sa.String(length=200), nullable=False),
-        sa.Column("role", sa.String(length=20), nullable=False, server_default="client"),
+        sa.Column(
+            "role", sa.String(length=20), nullable=False, server_default="client"
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -111,7 +114,7 @@ def upgrade() -> None:
         sa.Column("discount_type", sa.String(length=20), nullable=False),
         sa.Column("value", sa.Float(), nullable=False),
         sa.Column("min_purchase", sa.Float(), nullable=True),
-        sa.Column("active", sa.Boolean(), nullable=True, server_default='true'),
+        sa.Column("active", sa.Boolean(), nullable=True, server_default="true"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -123,7 +126,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_discounts_id"), "discounts", ["id"], unique=False)
-    op.create_index(op.f("ix_discounts_tenant_id"), "discounts", ["tenant_id"], unique=False)
+    op.create_index(
+        op.f("ix_discounts_tenant_id"), "discounts", ["tenant_id"], unique=False
+    )
 
     # Create products table
     op.create_table(
@@ -145,7 +150,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_products_id"), "products", ["id"], unique=False)
-    op.create_index(op.f("ix_products_tenant_id"), "products", ["tenant_id"], unique=False)
+    op.create_index(
+        op.f("ix_products_tenant_id"), "products", ["tenant_id"], unique=False
+    )
 
     # Create carts table
     op.create_table(
@@ -218,8 +225,8 @@ def upgrade() -> None:
         sa.Column("original_vendor", sa.String(length=100), nullable=True),
         # User and status fields
         sa.Column("seller_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("is_verified", sa.Boolean(), nullable=True, server_default='false'),
-        sa.Column("is_approved", sa.Boolean(), nullable=True, server_default='false'),
+        sa.Column("is_verified", sa.Boolean(), nullable=True, server_default="false"),
+        sa.Column("is_approved", sa.Boolean(), nullable=True, server_default="false"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -231,10 +238,27 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["seller_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_second_hand_products_id"), "second_hand_products", ["id"], unique=False)
-    op.create_index(op.f("ix_second_hand_products_tenant_id"), "second_hand_products", ["tenant_id"], unique=False)
-    op.create_index(op.f("ix_second_hand_products_barcode"), "second_hand_products", ["barcode"], unique=False)
-    op.create_index(op.f("ix_second_hand_products_original_sku"), "second_hand_products", ["original_sku"], unique=False)
+    op.create_index(
+        op.f("ix_second_hand_products_id"), "second_hand_products", ["id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_second_hand_products_tenant_id"),
+        "second_hand_products",
+        ["tenant_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_second_hand_products_barcode"),
+        "second_hand_products",
+        ["barcode"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_second_hand_products_original_sku"),
+        "second_hand_products",
+        ["original_sku"],
+        unique=False,
+    )
 
     # Create second_hand_product_images table
     op.create_table(
@@ -242,7 +266,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("product_id", sa.Integer(), nullable=False),
         sa.Column("image_url", sa.String(length=500), nullable=False),
-        sa.Column("is_primary", sa.Boolean(), nullable=True, server_default='false'),
+        sa.Column("is_primary", sa.Boolean(), nullable=True, server_default="false"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -253,7 +277,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["product_id"], ["second_hand_products.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_second_hand_product_images_id"), "second_hand_product_images", ["id"], unique=False)
+    op.create_index(
+        op.f("ix_second_hand_product_images_id"),
+        "second_hand_product_images",
+        ["id"],
+        unique=False,
+    )
 
     # Create a default tenant (without hardcoded secrets)
     # Note: Shopify credentials should be set via environment variables or admin interface
@@ -269,38 +298,47 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop all tables."""
     # Drop tables in reverse order of creation to handle foreign key constraints
-    op.drop_index(op.f("ix_second_hand_product_images_id"), table_name="second_hand_product_images")
+    op.drop_index(
+        op.f("ix_second_hand_product_images_id"),
+        table_name="second_hand_product_images",
+    )
     op.drop_table("second_hand_product_images")
-    
-    op.drop_index(op.f("ix_second_hand_products_original_sku"), table_name="second_hand_products")
-    op.drop_index(op.f("ix_second_hand_products_barcode"), table_name="second_hand_products")
-    op.drop_index(op.f("ix_second_hand_products_tenant_id"), table_name="second_hand_products")
+
+    op.drop_index(
+        op.f("ix_second_hand_products_original_sku"), table_name="second_hand_products"
+    )
+    op.drop_index(
+        op.f("ix_second_hand_products_barcode"), table_name="second_hand_products"
+    )
+    op.drop_index(
+        op.f("ix_second_hand_products_tenant_id"), table_name="second_hand_products"
+    )
     op.drop_index(op.f("ix_second_hand_products_id"), table_name="second_hand_products")
     op.drop_table("second_hand_products")
-    
+
     op.drop_index(op.f("ix_cart_items_id"), table_name="cart_items")
     op.drop_table("cart_items")
-    
+
     op.drop_index(op.f("ix_carts_tenant_id"), table_name="carts")
     op.drop_index(op.f("ix_carts_id"), table_name="carts")
     op.drop_table("carts")
-    
+
     op.drop_index(op.f("ix_products_tenant_id"), table_name="products")
     op.drop_index(op.f("ix_products_id"), table_name="products")
     op.drop_table("products")
-    
+
     op.drop_index(op.f("ix_discounts_tenant_id"), table_name="discounts")
     op.drop_index(op.f("ix_discounts_id"), table_name="discounts")
     op.drop_table("discounts")
-    
+
     op.drop_index(op.f("ix_users_tenant_id"), table_name="users")
     op.drop_index(op.f("ix_users_id"), table_name="users")
     op.drop_table("users")
-    
+
     op.drop_index(op.f("ix_tenants_domain"), table_name="tenants")
     op.drop_index(op.f("ix_tenants_subdomain"), table_name="tenants")
     op.drop_index(op.f("ix_tenants_id"), table_name="tenants")
     op.drop_table("tenants")
-    
+
     # Drop enum types
     sa.Enum(name="cartstatus").drop(op.get_bind())

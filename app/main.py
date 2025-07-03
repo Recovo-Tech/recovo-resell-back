@@ -1,12 +1,5 @@
-# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import os
-from dotenv import load_dotenv
-
-origins = ['*']
-
-
 from app.routes import (
     auth_routes,
     cart_routes,
@@ -21,10 +14,9 @@ from app.middleware.tenant_middleware import tenant_middleware
 
 app = FastAPI(title="Recovo Online Store API", docs_url=None)
 
-# Add tenant middleware
 app.middleware("http")(tenant_middleware)
 
-#Add CORS middleware
+origins = ['*']
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
