@@ -34,6 +34,7 @@ services:
       - DATABASE_HOSTNAME=db
       - DATABASE_PASSWORD=${DATABASE_PASSWORD}
       - DATABASE_PORT=5432
+      - DOMAIN=${DOMAIN}
 
 
   nginx:
