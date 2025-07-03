@@ -5,24 +5,19 @@
 server {
     listen 80;
     server_name ${DOMAIN};
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
+    # Redirige todo el tráfico HTTP a HTTPS
     location / {
         return 301 https://$host$request_uri;
     }
 }
 
-# This block handles the secure HTTPS traffic.
 server {
     listen 443 ssl;
     server_name ${DOMAIN};
 
-    # Paths to the SSL certificates (inside the shared volume)
-    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    # Apunta a los certificados de Origen de Cloudflare
+    ssl_certificate /etc/ssl/private/cert.pem;
+    ssl_certificate_key /etc/ssl/private/key.pem;
 
     location / {
         proxy_pass http://api:8000;

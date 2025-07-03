@@ -83,9 +83,9 @@ jobs:
             export DATABASE_HOSTNAME=db # This is hardcoded as it's an internal docker hostname
             export DATABASE_PORT=5432
             export DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
-            export DOMAIN=${{ secrets.DOMAIN }}
+            export DOMAIN=${{ vars.DOMAIN }}
             echo "--- Paso 1: Verificando el secreto en el pipeline ---"
-            echo "El valor de DOMAIN es: ${{ secrets.DOMAIN }}"
+            echo "El valor de DOMAIN es: ${{ vars.DOMAIN }}"
             echo "----------------------------------------------------"
 
             # Navigate to your app directory
