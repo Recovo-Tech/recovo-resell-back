@@ -83,7 +83,7 @@ jobs:
             export DATABASE_HOSTNAME=db # This is hardcoded as it's an internal docker hostname
             export DATABASE_PORT=5432
             export DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
-            export DOMAIN=${{ vars.DOMAIN }}
+            export DOMAIN=${{ secrets.DOMAIN }}
 
             # Navigate to your app directory
             cd /root/app
@@ -127,7 +127,7 @@ jobs:
 
             export SHOPIFY_APP_URL=${{ secrets.SHOPIFY_APP_URL }}
             export SHOPIFY_ACCESS_TOKEN=${{ secrets.SHOPIFY_ACCESS_TOKEN }}
-            export DOMAIN=${{ vars.DOMAIN }}
+            export DOMAIN=${{ secrets.DOMAIN }}
 
             # For non-secret variables stored in GitHub, use vars.
             export AWS_REGION=${{ vars.AWS_REGION }}
