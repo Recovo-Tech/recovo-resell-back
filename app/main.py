@@ -12,7 +12,7 @@ from app.routes import (
 )
 from app.middleware.tenant_middleware import tenant_middleware
 
-app = FastAPI(title="Recovo Online Store API", docs_url=None)
+app = FastAPI(title="Recovo Online Store API")
 
 app.middleware("http")(tenant_middleware)
 
