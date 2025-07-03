@@ -84,6 +84,9 @@ jobs:
             export DATABASE_PORT=5432
             export DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
             export DOMAIN=${{ secrets.DOMAIN }}
+            echo "--- Paso 1: Verificando el secreto en el pipeline ---"
+            echo "El valor de DOMAIN es: ${{ secrets.DOMAIN }}"
+            echo "----------------------------------------------------"
 
             # Navigate to your app directory
             cd /root/app
@@ -92,6 +95,12 @@ jobs:
             git pull origin stage # Change branch name accordingly
             docker compose pull
             docker compose up -d --force-recreate
+
+            echo ""
+            echo "--- Paso 4: Esperando y revisando los logs de Nginx ---"
+            sleep 15 # Espera 15 segundos para que el contenedor intente arrancar
+            docker compose logs nginx
+            echo "--------------------------------------------------------"
 
   deploy-prod: # Changed from deploy-production
     needs: build-and-push
