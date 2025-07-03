@@ -4,14 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 
-origins = []
-load_dotenv()
-
-#Si el entorno es local o dev añado el localhost como origin
-if os.getenv("ENV") == "local" or os.getenv("ENV") == "dev":
-    origins = [
-        "http://localhost:3000",
-    ]
+origins = ['*']
 
 
 from app.routes import (
