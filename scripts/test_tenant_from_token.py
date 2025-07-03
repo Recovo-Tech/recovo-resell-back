@@ -55,7 +55,7 @@ def test_tenant_from_token():
         return False
 
     # Step 3: Test login with the new user
-    login_data = {"username": test_username, "password": test_password}
+    login_data = {"username": test_username, "password": test_password, "tenant_name": "Default Tenant"}
 
     try:
         print(f"🔐 Testing login for: {test_username}")

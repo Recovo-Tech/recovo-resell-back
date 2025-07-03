@@ -6,7 +6,13 @@ import requests
 import json
 from uuid import uuid4
 
-# Add the parent directory to the path so we can import from app
+# Add the parent directory     print("\n📋 Summary:")
+    print("✅ Tenant name registration (user-friendly)")
+    print("✅ Tenant name login (secure and explicit)")  
+    print("✅ JWT token contains tenant context")
+    print("✅ Protected endpoints work with token")
+    print("✅ Invalid tenant names are rejected")
+    print("✅ System is Postman/API-testing friendly")path so we can import from app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -48,14 +54,14 @@ def comprehensive_tenant_auth_test():
         return False
 
     # Test 2: Login (tenant determined from user record)
-    print("\n🔐 Test 2: Login without specifying tenant")
-    login_data = {"username": test_username, "password": test_password}
+    print("\n🔐 Test 2: Login with tenant name")
+    login_data = {"username": test_username, "password": test_password, "tenant_name": "Default Tenant"}
 
     try:
         response = requests.post(f"{base_url}/auth/login", json=login_data)
         if response.status_code == 200:
             login_result = response.json()
-            print(f"✅ Login successful - tenant automatically detected")
+            print(f"✅ Login successful - tenant specified and authenticated")
             login_token = login_result["token"]["access_token"]
         else:
             print(f"❌ Login failed: {response.status_code} - {response.text}")
@@ -132,7 +138,7 @@ def comprehensive_tenant_auth_test():
     )
     print("\n📋 Summary:")
     print("✅ Tenant name registration (user-friendly)")
-    print("✅ Global login (no tenant required)")
+    print("✅ Tenant name login (secure and explicit)")
     print("✅ JWT token contains tenant context")
     print("✅ Protected endpoints work with token")
     print("✅ Invalid tenant names are rejected")

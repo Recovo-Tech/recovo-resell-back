@@ -53,7 +53,11 @@ def register_user(
     }
 
 
-@router.post("/login")
+@router.post("/login", 
+    summary="User Login", 
+    description="Login with username, password and tenant name. Returns user info and Bearer token.",
+    response_model=LoginResponse
+)
 async def login(
     request: LoginRequest,
     auth_service=Depends(get_auth_service),
