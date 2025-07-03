@@ -83,7 +83,7 @@ async def login(
         # Create JWT token with tenant context
 
         access_token = auth_service.create_access_token(
-            data=user, expires_delta=timedelta(days=1)
+            data=user, expires_delta=timedelta(days=30)
         )
 
         return {
