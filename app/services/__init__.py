@@ -3,6 +3,7 @@ from .cart import CartService
 from .discount import DiscountService
 from .product import ProductService
 from .user import UserService
+from .tenant import TenantService
 
 __all__ = [
     "UserService",
@@ -10,4 +11,5 @@ __all__ = [
     "ProductService",
     "AuthService",
     "DiscountService",
+    "TenantService",
 ]

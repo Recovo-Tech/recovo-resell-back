@@ -6,6 +6,7 @@ from app.schemas.user import UserResponse
 class LoginRequest(BaseModel):
     username: str
     password: str
+    tenant_name: str
 
 
 class Token(BaseModel):

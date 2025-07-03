@@ -11,6 +11,10 @@ class TenantService:
 
     def get_tenant_by_id(self, tenant_id: int):
         return self.repo.get_by_id(tenant_id)
+    
+    def get_tenant_by_name(self, tenant_name: str):
+        """Get tenant by name, ensuring uniqueness"""
+        return self.repo.get_all_by(Tenant.name == tenant_name).first()
 
     def create_tenant(self, tenant_data: dict):
         new_tenant = Tenant(**tenant_data)

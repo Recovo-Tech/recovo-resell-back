@@ -33,8 +33,8 @@ class AuthService:
             return None
 
         return {
-            "id": str(user.id),  # Convert UUID to string for JSON serialization
-            "tenant_id": str(user.tenant_id),  # Include tenant_id in user data
+            "id": str(user.id),  
+            "tenant_id": str(user.tenant_id), 
             "username": user.username,
             "email": user.email,
             "role": user.role,

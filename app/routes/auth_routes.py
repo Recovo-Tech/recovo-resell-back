@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.services import AuthService, TenantService
 
 from app.config.db_config import get_db
 from app.models.tenant import Tenant
@@ -52,23 +53,43 @@ def register_user(
     }
 
 
-@router.post("/login", response_model=LoginResponse)
-def login(
-    login_request: LoginRequest,
-    auth_service=Depends(get_auth_service),
-):  
-    # For login, we need to search across all tenants first, then validate
-    user_data = auth_service.authenticate_user_global(
-        login_request.username, login_request.password
-    )
-    if not user_data:
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
-    
-    # user_data is already a dict with the token data we need
-    access_token = auth_service.create_access_token(
-        data=user_data, expires_delta=timedelta(days=1)
-    )
-    return {
-        "user": user_data,  # user_data is already in the correct format
-        "token": {"access_token": access_token, "token_type": "bearer"},
-    }
+@router.post("/login")
+async def login(
+    request: LoginRequest, 
+    auth_service = Depends(get_auth_service),
+    tenant_service: TenantService = Depends(get_tenant_service)
+):
+    """Login endpoint that requires tenant_name for proper tenant isolation"""
+    try:
+        # First, validate that the tenant exists and is active
+        tenant = tenant_service.get_tenant_by_name(request.tenant_name)
+        import ipdb; ipdb.set_trace()
+        if not tenant or not tenant.is_active:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid tenant name '{request.tenant_name}' or tenant is not active"
+            )
+        
+        # Authenticate user within the specific tenant
+        user = auth_service.authenticate_user(request.username, request.password, tenant.id)
+        if not user:
+            raise HTTPException(
+                status_code=401, 
+                detail="Invalid username or password"
+            )
+        
+        # Create JWT token with tenant context
+       
+        
+        
+        access_token = auth_service.create_access_token(data=user, expires_delta=timedelta(days=1))
+        
+        return {
+            "user": user,
+            "token": {"access_token": access_token, "token_type": "bearer"},
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
