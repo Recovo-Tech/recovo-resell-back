@@ -141,6 +141,6 @@ jobs:
             cd /root/app
 
             # Pull latest code and restart services
-            git pull origin stage # Change branch name accordingly
+            git pull origin main # Change branch name accordingly
             docker compose pull
             docker compose up -d --force-recreate

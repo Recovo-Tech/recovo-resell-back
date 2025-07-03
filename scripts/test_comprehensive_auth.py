@@ -7,12 +7,12 @@ import json
 from uuid import uuid4
 
 # Add the parent directory     print("\n📋 Summary:")
-    print("✅ Tenant name registration (user-friendly)")
-    print("✅ Tenant name login (secure and explicit)")  
-    print("✅ JWT token contains tenant context")
-    print("✅ Protected endpoints work with token")
-    print("✅ Invalid tenant names are rejected")
-    print("✅ System is Postman/API-testing friendly")path so we can import from app
+print("✅ Tenant name registration (user-friendly)")
+print("✅ Tenant name login (secure and explicit)")  
+print("✅ JWT token contains tenant context")
+print("✅ Protected endpoints work with token")
+print("✅ Invalid tenant names are rejected")
+print("✅ System is Postman/API-testing friendly")
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
