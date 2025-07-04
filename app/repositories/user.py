@@ -34,7 +34,9 @@ class UserRepository(BaseRepository):
             .first()
         )
 
-    def get_by_username_or_email_and_tenant(self, username: str, email: str, tenant_id: UUID):
+    def get_by_username_or_email_and_tenant(
+        self, username: str, email: str, tenant_id: UUID
+    ):
         return (
             self.db.query(self.model)
             .filter(

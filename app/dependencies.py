@@ -1,7 +1,7 @@
 # app/dependencies.py
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -17,13 +17,23 @@ from app.services import (
 )
 from app.services.tenant_service import TenantService
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# Use HTTPBearer instead of OAuth2PasswordBearer for cleaner Swagger UI
+# This allows simple Bearer token authorization without OAuth2 complexity
+security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials = Depends(security),
     db: Session = Depends(get_db),
 ):
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    token = credentials.credentials
     auth_service = AuthService(db)
     payload = auth_service.decode_access_token(token)
     if payload is None:
@@ -98,10 +108,18 @@ def get_tenant_service(db: Session = Depends(get_db)) -> TenantService:
 
 
 def get_current_tenant_from_token(
-    token: str = Depends(oauth2_scheme),
+    credentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> Tenant:
     """Get current tenant directly from JWT token"""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    token = credentials.credentials
     auth_service = AuthService(db)
     payload = auth_service.decode_access_token(token)
     if payload is None:

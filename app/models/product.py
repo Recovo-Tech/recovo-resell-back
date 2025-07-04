@@ -51,16 +51,22 @@ class SecondHandProduct(Base):
     shopify_product_id = Column(
         String(50), nullable=True
     )  # Shopify product ID for verification
-    weight = Column(Float, nullable=True)  # Product weight from original Shopify product
-    weight_unit = Column(String(20), nullable=True)  # Weight unit (GRAMS, KILOGRAMS, etc.)
+    weight = Column(
+        Float, nullable=True
+    )  # Product weight from original Shopify product
+    weight_unit = Column(
+        String(20), nullable=True
+    )  # Weight unit (GRAMS, KILOGRAMS, etc.)
     size = Column(String(50), nullable=True)  # Product size (S, M, L, XL, etc.)
-    
+
     # Original product information from Shopify store
     original_title = Column(String(200), nullable=True)  # Original product title
     original_description = Column(Text, nullable=True)  # Original product description
-    original_product_type = Column(String(100), nullable=True)  # Original product type/category
+    original_product_type = Column(
+        String(100), nullable=True
+    )  # Original product type/category
     original_vendor = Column(String(100), nullable=True)  # Original vendor/brand
-    
+
     seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     is_verified = Column(
         Boolean, default=False

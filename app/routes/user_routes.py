@@ -26,7 +26,7 @@ def update_current_user(
     current_user=Depends(get_current_user),
     user_service=Depends(get_user_service),
 ):
-    
+
     updated = user_service.update_user(
         current_user.id, user.model_dump(exclude_unset=True)
     )

@@ -83,6 +83,10 @@ jobs:
             export DATABASE_HOSTNAME=db # This is hardcoded as it's an internal docker hostname
             export DATABASE_PORT=5432
             export DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+            export DOMAIN=${{ vars.DOMAIN }}
+            echo "--- Paso 1: Verificando el secreto en el pipeline ---"
+            echo "El valor de DOMAIN es: ${{ vars.DOMAIN }}"
+            echo "----------------------------------------------------"
 
             # Navigate to your app directory
             cd /root/app
@@ -91,6 +95,12 @@ jobs:
             git pull origin stage # Change branch name accordingly
             docker compose pull
             docker compose up -d --force-recreate
+
+            echo ""
+            echo "--- Paso 4: Esperando y revisando los logs de Nginx ---"
+            sleep 15 # Espera 15 segundos para que el contenedor intente arrancar
+            docker compose logs nginx
+            echo "--------------------------------------------------------"
 
   deploy-prod: # Changed from deploy-production
     needs: build-and-push
@@ -126,7 +136,7 @@ jobs:
 
             export SHOPIFY_APP_URL=${{ secrets.SHOPIFY_APP_URL }}
             export SHOPIFY_ACCESS_TOKEN=${{ secrets.SHOPIFY_ACCESS_TOKEN }}
-
+            export DOMAIN=${{ secrets.DOMAIN }}
 
             # For non-secret variables stored in GitHub, use vars.
             export AWS_REGION=${{ vars.AWS_REGION }}
@@ -140,6 +150,6 @@ jobs:
             cd /root/app
 
             # Pull latest code and restart services
-            git pull origin stage # Change branch name accordingly
+            git pull origin main # Change branch name accordingly
             docker compose pull
             docker compose up -d --force-recreate

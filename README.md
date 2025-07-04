@@ -285,7 +285,8 @@ When testing the API with tools like Postman:
    ```json
    {
      "username": "testuser",
-     "password": "password123"
+     "password": "password123",
+     "tenant_name": "Default Tenant"
    }
    ```
 
