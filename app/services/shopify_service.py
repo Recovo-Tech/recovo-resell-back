@@ -191,6 +191,86 @@ class ShopifyGraphQLClient:
 
         return result.get("data", {}).get("product")
 
+    async def get_all_collections(self) -> List[Dict[str, Any]]:
+        """Fetch all collections/categories from Shopify"""
+        query = """
+        query getAllCollections($first: Int!) {
+            collections(first: $first) {
+                edges {
+                    node {
+                        id
+                        title
+                        handle
+                        description
+                        descriptionHtml
+                        image {
+                            id
+                            url
+                            altText
+                        }
+                        productsCount {
+                            count
+                        }
+                        updatedAt
+                    }
+                }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+            }
+        }
+        """
+
+        all_collections = []
+        has_next_page = True
+        cursor = None
+
+        try:
+            while has_next_page:
+                variables = {"first": 50}  # Fetch 50 collections at a time
+                if cursor:
+                    variables["after"] = cursor
+                    # Modify query for pagination
+                    paginated_query = query.replace("($first: Int!)", "($first: Int!, $after: String!)")
+                    paginated_query = paginated_query.replace("collections(first: $first)", "collections(first: $first, after: $after)")
+                    query_to_use = paginated_query
+                else:
+                    query_to_use = query
+
+                response = await self.execute_query(query_to_use, variables)
+
+                if "errors" in response:
+                    print(f"GraphQL errors: {response['errors']}")
+                    break
+
+                collections_data = response.get("data", {}).get("collections", {})
+                edges = collections_data.get("edges", [])
+                page_info = collections_data.get("pageInfo", {})
+
+                # Extract collection data
+                for edge in edges:
+                    collection = edge["node"]
+                    all_collections.append({
+                        "id": collection["id"],
+                        "title": collection["title"],
+                        "handle": collection["handle"],
+                        "description": collection.get("description", ""),
+                        "description_html": collection.get("descriptionHtml", ""),
+                        "image": collection.get("image"),
+                        "products_count": collection.get("productsCount", {}).get("count", 0),
+                        "updated_at": collection.get("updatedAt"),
+                    })
+
+                has_next_page = page_info.get("hasNextPage", False)
+                cursor = page_info.get("endCursor")
+
+        except Exception as e:
+            print(f"Error fetching collections: {e}")
+            raise
+
+        return all_collections
+
 
 class ShopifyProductVerificationService:
     """Service for verifying products against Shopify store inventory"""
