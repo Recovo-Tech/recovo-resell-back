@@ -95,10 +95,13 @@ async def create_second_hand_product(
     )
 
     if not verification_result["is_verified"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"error.product_verification_failed: {verification_result.get('error', 'product_not_found in Shopify')}",
-        )
+        is_verified = False
+    else:
+        is_verified = True
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail=f"error.product_verification_failed: {verification_result.get('error', 'product_not_found in Shopify')}",
+    #     )
 
     # Step 2: Create the product in the database
     result = await service.create_second_hand_product(
@@ -170,6 +173,38 @@ async def create_second_hand_product(
             created_product.id, current_tenant.id, all_image_urls
         )
         db.refresh(created_product)
+    
+    # DEBUG: Check verification status before automatic approval
+    print(f"DEBUG ROUTE: Product {created_product.id} verification status:")
+    print(f"  - is_verified: {created_product.is_verified}")
+    print(f"  - is_approved: {created_product.is_approved}")
+    print(f"  - verification_result: {verification_result.get('is_verified')}")
+    
+    # If product is verified, automatically approve and publish it
+    if created_product.is_verified:
+        print(f"DEBUG ROUTE: Product {created_product.id} is verified, attempting automatic approval...")
+        try:
+            approval_result = await service.approve_product(
+                created_product.id, current_tenant.id
+            )
+            
+            print(f"DEBUG ROUTE: Approval result: {approval_result}")
+            
+            if approval_result["success"]:
+                print(f"DEBUG ROUTE: Product {created_product.id} automatically approved and published to Shopify")
+                # Refresh the product to get updated fields (like shopify_product_id)
+                db.refresh(created_product)
+                print(f"DEBUG ROUTE: After refresh - is_approved: {created_product.is_approved}, shopify_id: {created_product.shopify_product_id}")
+            else:
+                print(f"WARNING ROUTE: Automatic approval failed for product {created_product.id}: {approval_result.get('error', 'Unknown error')}")
+                
+        except Exception as e:
+            print(f"ERROR ROUTE: Exception during automatic approval: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print(f"DEBUG ROUTE: Product {created_product.id} is NOT verified, skipping automatic approval")
+   
 
     return created_product
 

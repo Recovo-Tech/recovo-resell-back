@@ -46,12 +46,7 @@ class SecondHandProductService:
             )
 
             if not verification_result["is_verified"]:
-                return {
-                    "success": False,
-                    "error": verification_result.get(
-                        "error", "Product verification failed"
-                    ),
-                }
+                verification_result = {"is_verified": False, "product_info": {}}
         else:
             verification_result = {"is_verified": False, "product_info": {}}
 
@@ -366,36 +361,36 @@ class SecondHandProductService:
 
             # Use the proven productCreate mutation (most reliable approach)
             mutation = """
-            mutation productCreate($input: ProductInput!) {
-                productCreate(input: $input) {
-                    product {
-                        id
-                        title
-                        handle
-                        status
-                        productType
-                        vendor
-                        variants(first: 1) {
-                            edges {
-                                node {
-                                    id
-                                    weight
-                                    weightUnit
-                                    inventoryItem {
+                mutation productCreate($input: ProductInput!) {
+                    productCreate(input: $input) {
+                        product {
+                            id
+                            title
+                            handle
+                            status
+                            productType
+                            vendor
+                            variants(first: 1) {
+                                edges {
+                                    node {
                                         id
-                                        tracked
+                                        weight
+                                        weightUnit
+                                        inventoryItem {
+                                            id
+                                            tracked
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    userErrors {
-                        field
-                        message
+                        userErrors {
+                            field
+                            message
+                        }
                     }
                 }
-            }
-            """
+                """
 
             # Prepare product input using the proven ProductInput structure
             product_variables = {
@@ -538,6 +533,13 @@ class SecondHandProductService:
                         print(
                             "DEBUG: Inventory not tracked for this product or no inventory item ID found"
                         )
+
+                # Add product to "Second Hand" collection
+                collection_success = await self._add_to_second_hand_collection(client, shopify_product_id)
+                if collection_success:
+                    print("✅ Product added to Second Hand collection")
+                else:
+                    print("⚠️ Failed to add product to Second Hand collection")
 
                 return {
                     "success": True,
@@ -906,3 +908,151 @@ class SecondHandProductService:
         except Exception as e:
             print(f"Error verifying images: {str(e)}")
             return 0
+
+    async def _add_to_second_hand_collection(
+        self, client: ShopifyGraphQLClient, product_id: str
+    ) -> bool:
+        """Add a product to the 'Second Hand' collection"""
+        try:
+            # First, find or create the "Second Hand" collection
+            collection_id = await self._find_or_create_collection(client, "Second Hand")
+            
+            if not collection_id:
+                print("Failed to find or create 'Second Hand' collection")
+                return False
+            
+            # Add product to collection using collectionAddProducts mutation
+            add_product_mutation = """
+            mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
+                collectionAddProducts(id: $id, productIds: $productIds) {
+                    collection {
+                        id
+                        title
+                        productsCount {
+                            count
+                        }
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+            """
+            
+            variables = {
+                "id": collection_id,
+                "productIds": [product_id]
+            }
+            
+            print(f"DEBUG: Adding product {product_id} to collection {collection_id}")
+            result = await client.execute_query(add_product_mutation, variables)
+            print(f"DEBUG: Collection add result: {result}")
+            
+            # Check for errors
+            if result.get("data", {}).get("collectionAddProducts", {}).get("userErrors"):
+                errors = result["data"]["collectionAddProducts"]["userErrors"]
+                print(f"Error adding product to collection: {errors}")
+                return False
+            
+            # Check if the operation was successful
+            collection_data = result.get("data", {}).get("collectionAddProducts", {}).get("collection")
+            if collection_data:
+                products_count = collection_data.get("productsCount", {}).get("count", "unknown")
+                print(f"✅ Product added to collection '{collection_data.get('title')}' (Products count: {products_count})")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            print(f"Error adding product to Second Hand collection: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    async def _find_or_create_collection(
+        self, client: ShopifyGraphQLClient, collection_title: str
+    ) -> Optional[str]:
+        """Find an existing collection by title or create a new one"""
+        try:
+            # First, try to find existing collection
+            find_collection_query = """
+            query findCollection($query: String!) {
+                collections(first: 1, query: $query) {
+                    edges {
+                        node {
+                            id
+                            title
+                            handle
+                        }
+                    }
+                }
+            }
+            """
+            
+            search_variables = {
+                "query": f"title:{collection_title}"
+            }
+            
+            print(f"DEBUG: Searching for collection with title '{collection_title}'")
+            result = await client.execute_query(find_collection_query, search_variables)
+            
+            # Check if collection already exists
+            collections = result.get("data", {}).get("collections", {}).get("edges", [])
+            if collections:
+                collection_id = collections[0]["node"]["id"]
+                print(f"✅ Found existing collection: {collection_id}")
+                return collection_id
+            
+            # Collection doesn't exist, create it
+            print(f"Collection '{collection_title}' not found, creating new one...")
+            
+            create_collection_mutation = """
+            mutation collectionCreate($input: CollectionInput!) {
+                collectionCreate(input: $input) {
+                    collection {
+                        id
+                        title
+                        handle
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+            """
+            
+            create_variables = {
+                "input": {
+                    "title": collection_title,
+                    "handle": collection_title.lower().replace(" ", "-"),
+                    "descriptionHtml": f"<p>Collection for {collection_title.lower()} products sold through our marketplace.</p>",
+                    "published": True
+                }
+            }
+            
+            print(f"DEBUG: Creating collection with variables: {create_variables}")
+            create_result = await client.execute_query(create_collection_mutation, create_variables)
+            print(f"DEBUG: Collection creation result: {create_result}")
+            
+            # Check for creation errors
+            if create_result.get("data", {}).get("collectionCreate", {}).get("userErrors"):
+                errors = create_result["data"]["collectionCreate"]["userErrors"]
+                print(f"Error creating collection: {errors}")
+                return None
+            
+            # Get the created collection ID
+            created_collection = create_result.get("data", {}).get("collectionCreate", {}).get("collection")
+            if created_collection:
+                collection_id = created_collection["id"]
+                print(f"✅ Created new collection: {collection_id} - '{created_collection.get('title')}'")
+                return collection_id
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error finding or creating collection: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
