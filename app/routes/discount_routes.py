@@ -32,7 +32,7 @@ def update_discount(
         discount_id, discount.model_dump(exclude_unset=True)
     )
     if not updated:
-        raise HTTPException(status_code=404, detail="Discount not found")
+        raise HTTPException(status_code=404, detail="error.discount_not_found")
     return updated
 
 
@@ -45,5 +45,5 @@ def deactivate_discount(
 
     success = discount_service.deactivate_discount(discount_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Discount not found")
+        raise HTTPException(status_code=404, detail="error.discount_not_found")
     return {"detail": "Discount deactivated"}

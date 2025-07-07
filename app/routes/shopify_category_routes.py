@@ -24,7 +24,7 @@ async def get_categories(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch categories: {str(e)}"
+            detail=f"error.failed_to_fetch_categories: {str(e)}"
         )
 
 
@@ -43,7 +43,7 @@ async def get_category_by_id(
         if not category:
             raise HTTPException(
                 status_code=404,
-                detail=f"Category with ID {category_id} not found"
+                detail=f"error.category_with_ID_{category_id}_not_found"
             )
         
         return {
@@ -55,7 +55,7 @@ async def get_category_by_id(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch category: {str(e)}"
+            detail=f"error.failed_to_fetch_category: {str(e)}"
         )
 
 
@@ -80,5 +80,5 @@ async def search_categories(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to search categories: {str(e)}"
+            detail=f"error.failed_to_search_categories: {str(e)}"
         )

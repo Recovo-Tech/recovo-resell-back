@@ -40,7 +40,7 @@ async def handle_product_update(request: Request, db: Session = Depends(get_db))
     # Verify webhook signature
     if not verify_webhook_signature(body, signature):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="error.Invalid webhook signature"
         )
 
     try:
@@ -110,12 +110,12 @@ async def handle_product_update(request: Request, db: Session = Depends(get_db))
 
     except json.JSONDecodeError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="error.invalid_json_payload"
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing webhook: {str(e)}",
+            detail=f"error.Error processing webhook: {str(e)}",
         )
 
 
@@ -129,7 +129,7 @@ async def handle_product_delete(request: Request, db: Session = Depends(get_db))
     # Verify webhook signature
     if not verify_webhook_signature(body, signature):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="error.Invalid webhook signature"
         )
 
     try:
@@ -160,10 +160,10 @@ async def handle_product_delete(request: Request, db: Session = Depends(get_db))
 
     except json.JSONDecodeError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="error.invalid_json_payload"
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing webhook: {str(e)}",
+            detail=f"error.Error processing webhook: {str(e)}",
         )

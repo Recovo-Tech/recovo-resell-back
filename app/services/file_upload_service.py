@@ -27,13 +27,13 @@ class FileUploadService:
     def _validate_image(self, file: UploadFile) -> None:
         if not file.filename:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="error.filename_is_required"
             )
         file_extension = os.path.splitext(file.filename)[1].lower()
         if file_extension not in self.allowed_extensions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File type not allowed. Allowed types: {', '.join(self.allowed_extensions)}",
+                detail=f"error.file_type_not_allowed_allowed_types: {', '.join(self.allowed_extensions)}",
             )
         # Note: UploadFile does not have .size, so you may want to check after reading
 
@@ -101,7 +101,7 @@ class FileUploadService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Error processing image: {str(e)}",
+                detail=f"error.processing_image: {str(e)}",
             )
 
     async def upload_image(
@@ -116,7 +116,7 @@ class FileUploadService:
         if len(file_content) > self.max_file_size:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File size too large. Maximum size: {self.max_file_size / (1024*1024):.1f}MB",
+                detail=f"error.file_size_too_large._maximum_size: {self.max_file_size / (1024*1024):.1f}MB",
             )
         if optimize:
             file_content = await self._optimize_image(file_content)
@@ -133,7 +133,7 @@ class FileUploadService:
         except (BotoCoreError, ClientError) as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to upload image to S3: {str(e)}",
+                detail=f"error.failed_to_upload_image_to_S3: {str(e)}",
             )
 
     async def upload_multiple_images(
@@ -146,7 +146,7 @@ class FileUploadService:
         if len(files) > max_files:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Too many files. Maximum allowed: {max_files}",
+                detail=f"error.too_many_files._maximum_allowed: {max_files}",
             )
         uploaded_urls = []
         for file in files:

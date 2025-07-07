@@ -18,7 +18,7 @@ def get_active_cart(
 ):
     cart = cart_service.get_active_cart(current_user.id)
     if not cart:
-        raise HTTPException(status_code=404, detail="No active cart found")
+        raise HTTPException(status_code=404, detail="error.no_active_cart_found")
     return cart
 
 
@@ -48,7 +48,7 @@ def empty_cart(
 ):
     cart = cart_service.empty_cart(current_user.id)
     if not cart:
-        raise HTTPException(status_code=404, detail="Active cart not found")
+        raise HTTPException(status_code=404, detail="error.Active cart not found")
     return cart
 
 
@@ -58,7 +58,7 @@ def finalize_cart(
 ):
     result = cart_service.finalize_cart(current_user.id)
     if not result:
-        raise HTTPException(status_code=404, detail="Active cart not found")
+        raise HTTPException(status_code=404, detail="error.active_cart_not_found")
     return result
 
 
@@ -80,5 +80,5 @@ def apply_discount(
         current_user.id, request.discount_id, discount_service
     )
     if not updated_cart:
-        raise HTTPException(status_code=400, detail="Could not apply discount")
+        raise HTTPException(status_code=400, detail="error.could_not_apply_discount")
     return updated_cart

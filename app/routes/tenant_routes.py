@@ -61,7 +61,7 @@ async def update_current_tenant(
 
     if not updated_tenant:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="error.tenant_not_found"
         )
 
     return updated_tenant
@@ -80,7 +80,7 @@ async def get_tenant_by_id(
 
     if not tenant:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="error.tenant_not_found"
         )
 
     return tenant
@@ -100,7 +100,7 @@ async def update_tenant(
 
     if not updated_tenant:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="error.tenant_not_found"
         )
 
     return updated_tenant
@@ -119,7 +119,7 @@ async def delete_tenant(
 
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="error.tenant_not_found"
         )
 
     return {"message": "Tenant deleted successfully"}

@@ -26,12 +26,12 @@ def register_user(
     if not tenant or not tenant.is_active:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid tenant name '{user.tenant_name}' or tenant is not active",
+            detail=f"error.invalid_tenant_name '{user.tenant_name}' or tenant is not active",
         )
 
     if user.password != user.password_confirmation:
         raise HTTPException(
-            status_code=400, detail="Password and confirmation do not match"
+            status_code=400, detail="error.password_and_confirmation_do_not_match"
         )
     new_user = user_service.create_user(
         user.username, user.email, user.password, tenant.id, user.name, user.surname
@@ -70,7 +70,7 @@ async def login(
         if not tenant or not tenant.is_active:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid tenant name '{request.tenant_name}' or tenant is not active",
+                detail=f"error.invalid_tenant_name '{request.tenant_name}' or tenant is not active",
             )
 
         # Authenticate user within the specific tenant
@@ -78,7 +78,7 @@ async def login(
             request.username, request.password, tenant.id
         )
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+            raise HTTPException(status_code=401, detail="error.invalid_username_or_password")
 
         # Create JWT token with tenant context
 
@@ -94,4 +94,4 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"error.login_failed: {str(e)}")

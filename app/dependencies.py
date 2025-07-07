@@ -30,7 +30,7 @@ def get_current_user(
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication credentials required",
+            detail="error.authentication_credentials_required",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -40,7 +40,7 @@ def get_current_user(
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="error.invalid_authentication_credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     user_id = payload.get("id")
@@ -49,7 +49,7 @@ def get_current_user(
     if user_id is None or tenant_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token payload missing user id or tenant id",
+            detail="error.token_payload_missing_user_id_or_tenant_id",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -59,7 +59,7 @@ def get_current_user(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or tenant mismatch",
+            detail="error.user_not_found_or_tenant_mismatch",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -70,7 +70,7 @@ def admin_required(current_user=Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required",
+            detail="error.admin_privileges_required",
         )
     return current_user
 
@@ -79,7 +79,7 @@ def client_required(current_user=Depends(get_current_user)):
     if current_user.role != "client":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Client privileges required",
+            detail="error.client_privileges_required",
         )
     return current_user
 
@@ -116,7 +116,7 @@ def get_current_tenant_from_token(
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication credentials required",
+            detail="error.authentication_credentials_required",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -126,7 +126,7 @@ def get_current_tenant_from_token(
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="error.invalid_authentication_credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -134,7 +134,7 @@ def get_current_tenant_from_token(
     if tenant_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token payload missing tenant id",
+            detail="error.token_payload_missing_tenant_id",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -143,7 +143,7 @@ def get_current_tenant_from_token(
     if tenant is None or not tenant.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Tenant not found or inactive",
+            detail="error.tenant_not_found_or_inactive",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -160,5 +160,5 @@ def get_shopify_category_service(
     except ValueError as e:
         raise HTTPException(
             status_code=400, 
-            detail=f"Shopify not configured for tenant: {str(e)}"
+            detail=f"error.shopify_not_configured_for_tenant: {str(e)}"
         )

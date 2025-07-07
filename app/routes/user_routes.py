@@ -31,7 +31,7 @@ def update_current_user(
         current_user.id, user.model_dump(exclude_unset=True)
     )
     if not updated:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="error.user_not_found")
     return updated
 
 
@@ -41,7 +41,7 @@ def delete_current_user(
 ):
     success = user_service.delete_user(current_user.id)
     if not success:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="error.user_not_found")
     return {"detail": "User deleted"}
 
 
@@ -60,5 +60,5 @@ def list_users(user_service=Depends(get_user_service)):
 def update_user_role(user_id: UUID, role: str, user_service=Depends(get_user_service)):
     updated = user_service.update_user_role(user_id, role)
     if not updated:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="error.user_not_found")
     return updated

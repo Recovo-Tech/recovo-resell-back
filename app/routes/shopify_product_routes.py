@@ -49,7 +49,7 @@ async def list_products(
     if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
         raise HTTPException(
             status_code=400,
-            detail="Shopify integration not configured for this tenant. Please contact your administrator.",
+            detail="error.shopify_integration_not_configured_for_this_tenant._please_contact_your_administrator.",
         )
 
     try:
@@ -72,7 +72,7 @@ async def list_products(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error fetching products: {str(e)}"
+            status_code=500, detail=f"error.fetching_products: {str(e)}"
         )
 
 
@@ -88,7 +88,7 @@ async def get_product(
     if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
         raise HTTPException(
             status_code=400,
-            detail="Shopify integration not configured for this tenant. Please contact your administrator.",
+            detail="error.shopify_integration_not_configured_for_this_tenant._please_contact_your_administrator.",
         )
 
     try:
@@ -99,7 +99,7 @@ async def get_product(
         if not product:
             raise HTTPException(
                 status_code=404,
-                detail="Product not found"
+                detail="error.Product not found"
             )
         
         return ShopifyProduct(**product)
@@ -108,7 +108,7 @@ async def get_product(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error fetching product: {str(e)}"
+            status_code=500, detail=f"error.fetching_product: {str(e)}"
         )
 
 
@@ -123,7 +123,7 @@ async def get_available_filters(
     if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
         raise HTTPException(
             status_code=400,
-            detail="Shopify integration not configured for this tenant. Please contact your administrator.",
+            detail="error.shopify_integration_not_configured_for_this_tenant._please_contact_your_administrator.",
         )
 
     try:
@@ -137,7 +137,7 @@ async def get_available_filters(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error fetching filters: {str(e)}"
+            status_code=500, detail=f"error.Error fetching filters: {str(e)}"
         )
 
 
@@ -160,7 +160,7 @@ async def search_products(
     if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
         raise HTTPException(
             status_code=400,
-            detail="Shopify integration not configured for this tenant. Please contact your administrator.",
+            detail="error.shopify_integration_not_configured_for_this_tenant._please_contact_your_administrator.",
         )
 
     try:
@@ -189,5 +189,5 @@ async def search_products(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error searching products: {str(e)}"
+            status_code=500, detail=f"error.Error searching products: {str(e)}"
         )

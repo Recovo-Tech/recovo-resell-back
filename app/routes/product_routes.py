@@ -15,7 +15,7 @@ def get_products(product_service=Depends(get_product_service)):
 def get_product(product_id: int, product_service=Depends(get_product_service)):
     product = product_service.get_product_by_id(product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="error.product_not_found")
     return product
 
 
@@ -39,7 +39,7 @@ def update_product(
         product_id, product.model_dump(exclude_unset=True)
     )
     if not updated:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="error.product_not_found")
     return updated
 
 
@@ -51,5 +51,5 @@ def delete_product(
 ):
     success = product_service.delete_product(product_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="error.product_not_found")
     return {"detail": "Product deleted"}

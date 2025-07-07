@@ -25,7 +25,7 @@ def get_current_tenant() -> Tenant:
     if not tenant_context.tenant:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No tenant context found. This might be an unauthenticated request.",
+            detail="error.no_tenant_context_found._This_might_be_an_unauthenticated_request.",
         )
     return tenant_context.tenant
 

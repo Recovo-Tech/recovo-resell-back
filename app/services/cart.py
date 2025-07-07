@@ -82,7 +82,7 @@ class CartService:
             if product.stock < item.quantity:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Insufficient stock for product {product.name}",
+                    detail=f"error.insufficient_stock_for_product {product.name}",
                 )
             product.stock -= item.quantity
 
@@ -105,7 +105,7 @@ class CartService:
 
         discount = discount_service.get_discount_by_id(discount_id)
         if not discount or not discount.active:
-            raise HTTPException(status_code=400, detail="Invalid or inactive discount")
+            raise HTTPException(status_code=400, detail="error.invalid_or_inactive_discount")
 
         totals = self.calculate_totals(user_id)
         if (
@@ -114,7 +114,7 @@ class CartService:
         ):
             raise HTTPException(
                 status_code=400,
-                detail="Cart subtotal does not meet the discount requirements",
+                detail="error.cart_subtotal_does_not_meet_the_discount_requirements",
             )
 
         updated_cart = self.cart_repo.update(cart, {"discount_id": discount_id})

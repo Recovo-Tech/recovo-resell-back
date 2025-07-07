@@ -37,7 +37,7 @@ async def verify_product(
     if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
         raise HTTPException(
             status_code=400,
-            detail="Shopify integration not configured for this tenant. Please contact your administrator.",
+            detail="error.shopify_integration_not_configured_for_this_tenant._please_contact_your_administrator.",
         )
 
     # Use tenant-specific Shopify config
@@ -55,7 +55,7 @@ async def verify_product(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error verifying product: {str(e)}"
+            status_code=500, detail=f"error.error_verifying_product: {str(e)}"
         )
 
 
@@ -82,7 +82,7 @@ async def create_second_hand_product(
     if condition not in valid_conditions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid condition. Must be one of: {', '.join(valid_conditions)}",
+            detail=f"error.invalid_condition._must_be_one_of: {', '.join(valid_conditions)}",
         )
 
     # Step 1: Verify the product exists in Shopify first using tenant config
@@ -97,7 +97,7 @@ async def create_second_hand_product(
     if not verification_result["is_verified"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Product verification failed: {verification_result.get('error', 'Product not found in Shopify')}",
+            detail=f"error.product_verification_failed: {verification_result.get('error', 'product_not_found in Shopify')}",
         )
 
     # Step 2: Create the product in the database
@@ -144,7 +144,7 @@ async def create_second_hand_product(
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error uploading images: {str(e)}",
+                detail=f"error.error_uploading_images: {str(e)}",
             )
 
     # Step 4: Update the product with all image URLs (Shopify + user uploaded)
@@ -211,7 +211,7 @@ async def get_product(
 
     if not product:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="error.product_not_found"
         )
 
     return product
@@ -238,7 +238,7 @@ async def update_product(
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found or you don't have permission to update it",
+            detail="error.product_not_found_or_you_don't_have_permission_to_update_it",
         )
 
     return product
@@ -259,7 +259,7 @@ async def delete_product(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found or you don't have permission to delete it",
+            detail="error.product_not_found_or_you_don't_have_permission_to_delete_it",
         )
 
     return {"message": "Product deleted successfully"}
@@ -302,7 +302,7 @@ async def approve_product(
     if not result["success"]:
         if result["error_code"] == "PRODUCT_NOT_FOUND":
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="error.product_not_found"
             )
         else:
             raise HTTPException(

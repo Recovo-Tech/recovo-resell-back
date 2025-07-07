@@ -45,7 +45,7 @@ class UserService:
         )
         if existing_user:
             raise HTTPException(
-                status_code=400, detail="Username or email already in use"
+                status_code=400, detail="error.username_or_email_already_in_use"
             )
 
         hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
