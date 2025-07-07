@@ -150,6 +150,7 @@ def get_current_tenant_from_token(
     return tenant
 
 
+
 def get_shopify_category_service(
     tenant: Tenant = Depends(get_current_tenant_from_token)
 ) -> ShopifyCategoryService:
