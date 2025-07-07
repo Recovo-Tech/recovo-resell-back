@@ -16,6 +16,7 @@ from app.services import (
     UserService,
 )
 from app.services.tenant_service import TenantService
+from app.services.shopify_category_service import ShopifyCategoryService
 
 # Use HTTPBearer instead of OAuth2PasswordBearer for cleaner Swagger UI
 # This allows simple Bearer token authorization without OAuth2 complexity
@@ -147,3 +148,17 @@ def get_current_tenant_from_token(
         )
 
     return tenant
+
+
+
+def get_shopify_category_service(
+    tenant: Tenant = Depends(get_current_tenant_from_token)
+) -> ShopifyCategoryService:
+    """Dependency to get ShopifyCategoryService for the current tenant"""
+    try:
+        return ShopifyCategoryService(tenant)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Shopify not configured for tenant: {str(e)}"
+        )
