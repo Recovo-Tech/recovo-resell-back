@@ -37,6 +37,8 @@ class AuthService:
             "tenant_id": str(user.tenant_id),
             "username": user.username,
             "email": user.email,
+            "name" : user.name,
+            "surname" : user.surname,
             "role": user.role,
         }
 
@@ -56,6 +58,8 @@ class AuthService:
             "tenant_id": str(user.tenant_id),  # Include tenant_id in user data
             "username": user.username,
             "email": user.email,
+            "name" : user.name,
+            "surname" : user.surname,
             "role": user.role,
         }
 
