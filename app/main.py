@@ -9,6 +9,7 @@ from app.routes import (
     second_hand_routes,
     shopify_webhook_routes,
     tenant_routes,
+    shopify_category_routes,
 )
 from app.middleware.tenant_middleware import tenant_middleware
 
@@ -33,3 +34,4 @@ app.include_router(discount_routes.router)
 app.include_router(second_hand_routes.router)
 app.include_router(shopify_webhook_routes.router)
 app.include_router(tenant_routes.router)
+app.include_router(shopify_category_routes.router)
