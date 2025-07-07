@@ -20,7 +20,7 @@ def test_shopify_categories():
     # First, get a valid token by registering/logging in a user
     test_username = f"testuser_{uuid4().hex[:8]}"
     test_email = f"{test_username}@example.com"
-    test_password = os.environ.get("DATABASE_PASSWORD", "testpass123")  # Use env variable or default
+    test_password = "testpass123"
     
     # Register user
     register_data = {

@@ -191,11 +191,32 @@ class ShopifyGraphQLClient:
 
         return result.get("data", {}).get("product")
 
-    async def get_all_collections(self) -> List[Dict[str, Any]]:
-        """Fetch all collections/categories from Shopify"""
-        query = """
-        query getAllCollections($first: Int!) {
-            collections(first: $first) {
+    async def get_products_paginated(
+        self, 
+        first: int = 50, 
+        after: str = None,
+        collection_id: str = None,
+        product_type: str = None,
+        vendor: str = None,
+        status: str = "ACTIVE",
+        query: str = None
+    ) -> Dict[str, Any]:
+        """
+        Fetch products from Shopify with pagination and filtering
+        
+        Args:
+            first: Number of products to fetch (max 250)
+            after: Cursor for pagination
+            collection_id: Filter by collection/category ID
+            product_type: Filter by product type
+            vendor: Filter by vendor
+            status: Filter by product status (ACTIVE, ARCHIVED, DRAFT)
+            query: Search query string
+        """
+        # Build the GraphQL query
+        graphql_query = """
+        query getProducts($first: Int!, $after: String, $query: String) {
+            products(first: $first, after: $after, query: $query) {
                 edges {
                     node {
                         id
@@ -203,74 +224,261 @@ class ShopifyGraphQLClient:
                         handle
                         description
                         descriptionHtml
-                        image {
-                            id
-                            url
-                            altText
-                        }
-                        productsCount {
-                            count
-                        }
+                        status
+                        productType
+                        vendor
+                        tags
+                        createdAt
                         updatedAt
+                        images(first: 5) {
+                            edges {
+                                node {
+                                    id
+                                    url
+                                    altText
+                                }
+                            }
+                        }
+                        variants(first: 10) {
+                            edges {
+                                node {
+                                    id
+                                    title
+                                    sku
+                                    barcode
+                                    price
+                                    compareAtPrice
+                                    weight
+                                    weightUnit
+                                    inventoryQuantity
+                                    availableForSale
+                                    selectedOptions {
+                                        name
+                                        value
+                                    }
+                                }
+                            }
+                        }
+                        collections(first: 10) {
+                            edges {
+                                node {
+                                    id
+                                    title
+                                    handle
+                                }
+                            }
+                        }
+                        options {
+                            id
+                            name
+                            values
+                        }
                     }
                 }
                 pageInfo {
                     hasNextPage
+                    hasPreviousPage
+                    startCursor
                     endCursor
                 }
             }
         }
         """
 
-        all_collections = []
-        has_next_page = True
-        cursor = None
+        # Build query string for filtering
+        query_parts = []
+        
+        if status:
+            query_parts.append(f"status:{status}")
+        
+        if collection_id:
+            # Clean collection ID if it has the GID prefix
+            clean_collection_id = collection_id.replace("gid://shopify/Collection/", "")
+            query_parts.append(f"collection_id:{clean_collection_id}")
+        
+        if product_type:
+            query_parts.append(f"product_type:{product_type}")
+        
+        if vendor:
+            query_parts.append(f"vendor:{vendor}")
+        
+        if query:
+            query_parts.append(query)
+
+        query_string = " AND ".join(query_parts) if query_parts else None
+
+        variables = {"first": min(first, 250)}  # Shopify limits to 250
+        if after:
+            variables["after"] = after
+        if query_string:
+            variables["query"] = query_string
 
         try:
-            while has_next_page:
-                variables = {"first": 50}  # Fetch 50 collections at a time
-                if cursor:
-                    variables["after"] = cursor
-                    # Modify query for pagination
-                    paginated_query = query.replace("($first: Int!)", "($first: Int!, $after: String!)")
-                    paginated_query = paginated_query.replace("collections(first: $first)", "collections(first: $first, after: $after)")
-                    query_to_use = paginated_query
-                else:
-                    query_to_use = query
+            response = await self.execute_query(graphql_query, variables)
+            
+            if "errors" in response:
+                print(f"GraphQL errors: {response['errors']}")
+                return {
+                    "products": [],
+                    "page_info": {},
+                    "errors": response["errors"]
+                }
 
-                response = await self.execute_query(query_to_use, variables)
+            products_data = response.get("data", {}).get("products", {})
+            edges = products_data.get("edges", [])
+            page_info = products_data.get("pageInfo", {})
 
-                if "errors" in response:
-                    print(f"GraphQL errors: {response['errors']}")
-                    break
-
-                collections_data = response.get("data", {}).get("collections", {})
-                edges = collections_data.get("edges", [])
-                page_info = collections_data.get("pageInfo", {})
-
-                # Extract collection data
-                for edge in edges:
-                    collection = edge["node"]
-                    all_collections.append({
-                        "id": collection["id"],
-                        "title": collection["title"],
-                        "handle": collection["handle"],
-                        "description": collection.get("description", ""),
-                        "description_html": collection.get("descriptionHtml", ""),
-                        "image": collection.get("image"),
-                        "products_count": collection.get("productsCount", {}).get("count", 0),
-                        "updated_at": collection.get("updatedAt"),
+            # Transform products to a more friendly format
+            products = []
+            for edge in edges:
+                product = edge["node"]
+                
+                # Extract images
+                images = []
+                for img_edge in product.get("images", {}).get("edges", []):
+                    img = img_edge["node"]
+                    images.append({
+                        "id": img["id"],
+                        "url": img["url"],
+                        "alt_text": img.get("altText", "")
                     })
 
-                has_next_page = page_info.get("hasNextPage", False)
-                cursor = page_info.get("endCursor")
+                # Extract variants
+                variants = []
+                for var_edge in product.get("variants", {}).get("edges", []):
+                    variant = var_edge["node"]
+                    
+                    # Extract variant options (color, size, etc.)
+                    options = {}
+                    for option in variant.get("selectedOptions", []):
+                        options[option["name"].lower()] = option["value"]
+                    
+                    variants.append({
+                        "id": variant["id"].replace("gid://shopify/ProductVariant/", ""),
+                        "shopify_id": variant["id"],
+                        "title": variant["title"],
+                        "sku": variant.get("sku") or "",
+                        "barcode": variant.get("barcode") or "",
+                        "price": float(variant["price"]) if variant["price"] else 0.0,
+                        "compare_at_price": float(variant["compareAtPrice"]) if variant.get("compareAtPrice") else None,
+                        "weight": variant.get("weight"),
+                        "weight_unit": variant.get("weightUnit"),
+                        "inventory_quantity": variant.get("inventoryQuantity", 0),
+                        "available_for_sale": variant.get("availableForSale", False),
+                        "options": options
+                    })
+
+                # Extract collections
+                collections = []
+                for col_edge in product.get("collections", {}).get("edges", []):
+                    col = col_edge["node"]
+                    collections.append({
+                        "id": col["id"].replace("gid://shopify/Collection/", ""),
+                        "shopify_id": col["id"],
+                        "title": col["title"],
+                        "handle": col["handle"]
+                    })
+
+                # Extract product options (Color, Size, etc.)
+                product_options = []
+                for option in product.get("options", []):
+                    product_options.append({
+                        "id": option["id"],
+                        "name": option["name"],
+                        "values": option["values"]
+                    })
+
+                products.append({
+                    "id": product["id"].replace("gid://shopify/Product/", ""),
+                    "shopify_id": product["id"],
+                    "title": product["title"],
+                    "handle": product["handle"],
+                    "description": product.get("description", ""),
+                    "description_html": product.get("descriptionHtml", ""),
+                    "status": product["status"],
+                    "product_type": product.get("productType", ""),
+                    "vendor": product.get("vendor", ""),
+                    "tags": product.get("tags", []),
+                    "created_at": product.get("createdAt"),
+                    "updated_at": product.get("updatedAt"),
+                    "images": images,
+                    "variants": variants,
+                    "collections": collections,
+                    "options": product_options
+                })
+
+            return {
+                "products": products,
+                "page_info": {
+                    "has_next_page": page_info.get("hasNextPage", False),
+                    "has_previous_page": page_info.get("hasPreviousPage", False),
+                    "start_cursor": page_info.get("startCursor"),
+                    "end_cursor": page_info.get("endCursor")
+                },
+                "total_count": len(products)
+            }
 
         except Exception as e:
-            print(f"Error fetching collections: {e}")
+            print(f"Error fetching products: {e}")
             raise
 
-        return all_collections
+    async def get_product_filters(self) -> Dict[str, List[str]]:
+        """Get available filter options from the store"""
+        query = """
+        query getProductFilters {
+            productTypes(first: 100) {
+                edges {
+                    node
+                }
+            }
+            shop {
+                productVendors(first: 100) {
+                    edges {
+                        node
+                    }
+                }
+                productTags(first: 100) {
+                    edges {
+                        node
+                    }
+                }
+            }
+        }
+        """
 
+        try:
+            response = await self.execute_query(query)
+            
+            if "errors" in response:
+                print(f"GraphQL errors: {response['errors']}")
+                return {}
+
+            data = response.get("data", {})
+            
+            # Extract product types
+            product_types = []
+            for edge in data.get("productTypes", {}).get("edges", []):
+                product_types.append(edge["node"])
+
+            # Extract vendors
+            vendors = []
+            for edge in data.get("shop", {}).get("productVendors", {}).get("edges", []):
+                vendors.append(edge["node"])
+
+            # Extract tags
+            tags = []
+            for edge in data.get("shop", {}).get("productTags", {}).get("edges", []):
+                tags.append(edge["node"])
+
+            return {
+                "product_types": sorted(list(set(product_types))),
+                "vendors": sorted(list(set(vendors))),
+                "tags": sorted(list(set(tags)))
+            }
+
+        except Exception as e:
+            print(f"Error fetching product filters: {e}")
+            return {}
 
 class ShopifyProductVerificationService:
     """Service for verifying products against Shopify store inventory"""
