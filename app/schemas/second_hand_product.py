@@ -32,6 +32,8 @@ class SecondHandProductBase(BaseModel):
     original_sku: str = Field(..., min_length=1, max_length=100)
     barcode: Optional[str] = Field(None, max_length=100)
     size: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=50)
+    return_address: Optional[str] = Field(None, max_length=255)
 
 
 class SecondHandProductCreate(SecondHandProductBase):
@@ -44,6 +46,8 @@ class SecondHandProductUpdate(BaseModel):
     price: Optional[float] = Field(None, gt=0)
     condition: Optional[str] = Field(None, pattern="^(new|like_new|good|fair|poor)$")
     size: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=50)
+    return_address: Optional[str] = Field(None, max_length=255)
 
 
 class SecondHandProduct(SecondHandProductBase):
@@ -83,6 +87,7 @@ class ProductSearchFilters(BaseModel):
     query: Optional[str] = None
     condition: Optional[str] = Field(None, pattern="^(new|like_new|good|fair|poor)$")
     size: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=50)
     min_price: Optional[float] = Field(None, ge=0)
     max_price: Optional[float] = Field(None, ge=0)
     skip: int = Field(0, ge=0)

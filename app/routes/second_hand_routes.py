@@ -86,6 +86,8 @@ async def create_second_hand_product(
     original_sku: str = Form(...),
     barcode: str = Form(None),
     size: str = Form(None),
+    color: str = Form(None),
+    return_address: str = Form(None),
     files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     current_tenant: Tenant = Depends(get_current_tenant),
@@ -112,10 +114,10 @@ async def create_second_hand_product(
         sku=original_sku, barcode=barcode
     )
 
-    if not verification_result["is_verified"]:
-        is_verified = False
-    else:
-        is_verified = True
+    # if not verification_result["is_verified"]:
+    #     is_verified = False
+    # else:
+    #     is_verified = True
     #     raise HTTPException(
     #         status_code=status.HTTP_400_BAD_REQUEST,
     #         detail=f"error.product_verification_failed: {verification_result.get('error', 'product_not_found in Shopify')}",
@@ -132,13 +134,15 @@ async def create_second_hand_product(
         original_sku=original_sku,
         barcode=barcode,
         size=size,
-        shop_domain=current_tenant.shopify_app_url,  # Use tenant config
-        shopify_access_token=current_tenant.shopify_access_token,  # Use tenant config
+        color=color,
+        return_address=return_address,
+        shop_domain=current_tenant.shopify_app_url,
+        shopify_access_token=current_tenant.shopify_access_token,
     )
 
     if not result["success"]:
         error_message = result.get(
-            "error", "Unknown error occurred while creating product"
+            "error", "unknown_error_occurred_while_creating_product"
         )
         error_code = result.get("error_code", "PRODUCT_CREATION_FAILED")
 
@@ -249,7 +253,7 @@ async def create_second_hand_product(
             else:
                 # Auto-approval failed - this should be a non-fatal error
                 error_message = approval_result.get(
-                    "error", "Unknown error during auto-approval"
+                    "error", "unknown_error_during_auto-approval"
                 )
                 error_code = approval_result.get("error_code", "AUTO_APPROVAL_FAILED")
 
@@ -273,7 +277,7 @@ async def create_second_hand_product(
             # Re-raise HTTP exceptions (like the one above)
             raise
         except Exception as e:
-            error_message = f"Unexpected error during automatic approval: {str(e)}"
+            error_message = f"Unexpected_error_during_automatic_approval: {str(e)}"
             print(f"ERROR ROUTE: {error_message}")
 
             # Log the full traceback for debugging
@@ -425,6 +429,7 @@ async def search_products(
         query=filters.query,
         condition=filters.condition,
         size=filters.size,
+        color=filters.color,
         min_price=filters.min_price,
         max_price=filters.max_price,
         skip=filters.skip,
@@ -449,26 +454,28 @@ async def approve_product(
         if not result["success"]:
             if result.get("error_code") == "PRODUCT_NOT_FOUND":
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, 
+                    status_code=status.HTTP_404_NOT_FOUND,
                     detail={
                         "message": "Product not found",
-                        "error": f"No second-hand product found with ID {product_id}",
+                        "error": f"no_second-hand_product_found_with_ID_{product_id}",
                         "error_code": "PRODUCT_NOT_FOUND",
-                        "success": False
-                    }
+                        "success": False,
+                    },
                 )
             else:
                 error_code = result.get("error_code", "APPROVAL_FAILED")
-                error_message = result.get("error", "Unknown error during product approval")
-                
+                error_message = result.get(
+                    "error", "unknown_error_during_product_approval"
+                )
+
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail={
                         "message": "Product approval failed",
                         "error": error_message,
                         "error_code": error_code,
-                        "success": False
-                    }
+                        "success": False,
+                    },
                 )
 
         # Return response with appropriate warnings
@@ -487,7 +494,7 @@ async def approve_product(
             response["shopify_product_id"] = result["shopify_product_id"]
 
         return response
-        
+
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
@@ -499,6 +506,6 @@ async def approve_product(
                 "message": "Unexpected error during product approval",
                 "error": str(e),
                 "error_code": "APPROVAL_EXCEPTION",
-                "success": False
-            }
+                "success": False,
+            },
         )

@@ -29,6 +29,8 @@ class SecondHandProductService:
         condition: str,
         original_sku: str,
         size: str = None,
+        color: str = None,
+        return_address: str = None,
         barcode: Optional[str] = None,
         shop_domain: str = None,
         shopify_access_token: str = None,
@@ -64,6 +66,8 @@ class SecondHandProductService:
             description=description,
             price=price,
             size=size,
+            color=color,
+            return_address=return_address,
             condition=condition,
             original_sku=original_sku,
             barcode=barcode,
@@ -272,9 +276,6 @@ class SecondHandProductService:
         try:
             # Get product images
             images = [img.image_url for img in product.images] if product.images else []
-            print(
-                f"DEBUG: Found {len(images)} images for product {product.id}: {images}"
-            )
 
             # Prepare media input for images with proper structure and validation
             media_input = []
@@ -287,11 +288,8 @@ class SecondHandProductService:
                             "alt": f"{product.name} - Image {i + 1}",
                         }
                     )
-                    print(f"DEBUG: Added image {i+1} to media input: {img_url}")
                 else:
                     print(f"WARNING: Skipping invalid image URL: {img_url}")
-
-            print(f"DEBUG: Final media input array: {media_input}")
 
             # Build enhanced description with proper formatting
             description_parts = []
@@ -316,8 +314,11 @@ class SecondHandProductService:
                     <li><strong>Condition:</strong> {product.condition.replace('_', ' ').title()}</li>
                     <li><strong>Original SKU:</strong> {product.original_sku}</li>
                     {f'<li><strong>Barcode:</strong> {product.barcode}</li>' if product.barcode else ''}
+                    {f'<li><strong>Size:</strong> {product.size}</li>' if product.size else ''}
+                    {f'<li><strong>Color:</strong> {product.color}</li>' if product.color else ''}
                     {f'<li><strong>Original Brand:</strong> {product.original_vendor}</li>' if product.original_vendor else ''}
                     {f'<li><strong>Weight:</strong> {product.weight} {product.weight_unit}</li>' if product.weight else ''}
+                    {f'<li><strong>Return Address:</strong> {product.return_address}</li>' if product.return_address else ''}
                 </ul>
                 <p><em>This is a high-quality second-hand item sold through our marketplace platform.</em></p>
             """
@@ -369,6 +370,7 @@ class SecondHandProductService:
                             status
                             productType
                             vendor
+                            publishedAt
                             variants(first: 1) {
                                 edges {
                                     node {
@@ -399,13 +401,20 @@ class SecondHandProductService:
                     "vendor": vendor,
                     "productType": product_type,
                     "status": "ACTIVE",
+                    "published": True,  # Publish to online store
                     "productOptions": [
                         {
                             "name": "Size",
                             "values": [
-                                {"name": product.size if product.size else None},
+                                {"name": product.size if product.size else "One Size"},
                             ],
-                        }
+                        },
+                        {
+                            "name": "Color",
+                            "values": [
+                                {"name": product.color if product.color else "Default"},
+                            ],
+                        },
                     ],
                     "tags": [
                         "second-hand",
@@ -430,11 +439,7 @@ class SecondHandProductService:
                 }
             }
 
-            print(
-                f"DEBUG: Publishing product to Shopify with variables: {product_variables}"
-            )
             result = await client.execute_query(mutation, product_variables)
-            print(f"DEBUG: Shopify API response: {result}")
 
             # Check for GraphQL errors
             if result.get("errors"):
@@ -442,7 +447,7 @@ class SecondHandProductService:
                     error.get("message", "Unknown error") for error in result["errors"]
                 ]
                 error_msg = f"GraphQL errors: {', '.join(error_messages)}"
-                print(f"Shopify GraphQL errors: {error_msg}")
+                print(f"WARNING: Shopify GraphQL errors: {error_msg}")
                 return {
                     "success": False,
                     "error": f"Failed to connect to Shopify API: {error_msg}",
@@ -463,7 +468,7 @@ class SecondHandProductService:
                     error_messages.append(f"{field}: {message}")
 
                 error_msg = f"Product creation failed: {'; '.join(error_messages)}"
-                print(f"Shopify product creation errors: {error_msg}")
+                print(f"WARNING: Shopify product creation errors: {error_msg}")
                 return {
                     "success": False,
                     "error": error_msg,
@@ -474,22 +479,13 @@ class SecondHandProductService:
                 result.get("data", {}).get("productCreate", {}).get("product")
             )
             if shopify_product:
-                print(f"DEBUG: Successfully created product: {shopify_product}")
                 shopify_product_id = shopify_product["id"]
-
-                # Validate that product details were properly set
-                print(f"✅ Product created with:")
-                print(f"   - Title: {shopify_product.get('title')}")
-                print(f"   - Product Type: {shopify_product.get('productType')}")
-                print(f"   - Vendor: {shopify_product.get('vendor')}")
 
                 # Validate that weight was properly set
                 if shopify_product.get("variants", {}).get("edges"):
                     variant = shopify_product["variants"]["edges"][0]["node"]
                     variant_weight = variant.get("weight")
                     variant_weight_unit = variant.get("weightUnit")
-                    print(f"   - Weight: {variant_weight} {variant_weight_unit}")
-
                     if weight_value > 0 and (
                         not variant_weight or variant_weight != weight_value
                     ):
@@ -499,20 +495,14 @@ class SecondHandProductService:
 
                 # Always add images using productCreateMedia (most reliable method)
                 if len(media_input) > 0:
-                    print(
-                        f"DEBUG: Uploading {len(media_input)} images using productCreateMedia..."
-                    )
                     image_success = await self._add_images_to_product(
                         client, shopify_product_id, media_input
                     )
-                    if image_success:
-                        print("✅ Image upload completed successfully")
-                    else:
-                        print("⚠️ Image upload failed - product created without images")
+                    if not image_success:
+                        print(
+                            "⚠️ WARNING: Image upload failed - product created without images"
+                        )
                         # Don't fail the entire operation for image upload issues
-                else:
-                    print("ℹ️ No images to upload")
-
                 # Set inventory for the variant if we have a variant and it's tracked
                 if shopify_product.get("variants", {}).get("edges"):
                     variant = shopify_product["variants"]["edges"][0]["node"]
@@ -526,21 +516,22 @@ class SecondHandProductService:
                         )
                         if not inventory_success:
                             print(
-                                "Warning: Failed to set inventory quantity, but product was created successfully"
+                                "⚠️ WARNING: Failed to set inventory quantity, but product was created successfully"
                             )
-                    else:
-                        print(
-                            "DEBUG: Inventory not tracked for this product or no inventory item ID found"
-                        )
 
                 # Add product to "Second Hand" collection
                 collection_success = await self._add_to_second_hand_collection(
                     client, shopify_product_id
                 )
-                if collection_success:
-                    print("✅ Product added to Second Hand collection")
-                else:
-                    print("⚠️ Failed to add product to Second Hand collection")
+                if not collection_success:
+                    print("⚠️ WARNING: Failed to add product to Second Hand collection")
+
+                # Explicitly publish to online store
+                publish_success = await self._publish_to_online_store(
+                    client, shopify_product_id
+                )
+                if not publish_success:
+                    print("⚠️ WARNING: Failed to publish product to online store")
 
                 return {
                     "success": True,
@@ -548,7 +539,7 @@ class SecondHandProductService:
                     "message": "Product successfully published to Shopify",
                 }
             else:
-                print("ERROR: No product returned in response despite no errors")
+                print("⚠️ WARNING: No product returned in response despite no errors")
                 return {
                     "success": False,
                     "error": "Product creation succeeded but no product data was returned",
@@ -557,7 +548,7 @@ class SecondHandProductService:
 
         except Exception as e:
             error_msg = f"Unexpected error publishing to Shopify: {str(e)}"
-            print(error_msg)
+            print(f"⚠️ WARNING: {error_msg}")
             import traceback
 
             traceback.print_exc()
@@ -597,7 +588,6 @@ class SecondHandProductService:
 
             location_id = locations[0]["node"]["id"]
             location_name = locations[0]["node"]["name"]
-            print(f"DEBUG: Using location: {location_name} ({location_id})")
 
             # Use the correct inventorySetOnHandQuantities mutation
             inventory_mutation = """
@@ -632,11 +622,9 @@ class SecondHandProductService:
                 }
             }
 
-            print(f"DEBUG: Setting inventory with variables: {inventory_variables}")
             inventory_result = await client.execute_query(
                 inventory_mutation, inventory_variables
             )
-            print(f"DEBUG: Inventory set response: {inventory_result}")
 
             # Check for errors
             if (
@@ -647,7 +635,7 @@ class SecondHandProductService:
                 errors = inventory_result["data"]["inventorySetOnHandQuantities"][
                     "userErrors"
                 ]
-                print(f"Inventory set errors: {errors}")
+                print(f"⚠️ WARNING: Inventory set errors: {errors}")
                 return False
 
             # Check if adjustment was successful
@@ -657,19 +645,14 @@ class SecondHandProductService:
                 .get("inventoryAdjustmentGroup")
             )
             if adjustment_group:
-                print(
-                    f"✅ Successfully set inventory quantity - adjustment created at {adjustment_group.get('createdAt')}"
-                )
-                changes = adjustment_group.get("changes", [])
-                for change in changes:
-                    print(f"   - {change.get('name')}: delta {change.get('delta')}")
+
                 return True
             else:
-                print("✅ Inventory set successfully (no adjustment group needed)")
+
                 return True
 
         except Exception as e:
-            print(f"Error setting inventory: {str(e)}")
+            print(f"⚠️ WARNING: Error setting inventory: {str(e)}")
             import traceback
 
             traceback.print_exc()
@@ -701,6 +684,8 @@ class SecondHandProductService:
         tenant_id: uuid.UUID,
         query: str = None,
         condition: str = None,
+        size: str = None,
+        color: str = None,
         min_price: float = None,
         max_price: float = None,
         skip: int = 0,
@@ -721,6 +706,12 @@ class SecondHandProductService:
         if condition:
             db_query = db_query.filter(SecondHandProduct.condition == condition)
 
+        if size:
+            db_query = db_query.filter(SecondHandProduct.size == size)
+
+        if color:
+            db_query = db_query.filter(SecondHandProduct.color == color)
+
         if min_price is not None:
             db_query = db_query.filter(SecondHandProduct.price >= min_price)
 
@@ -734,7 +725,6 @@ class SecondHandProductService:
     ) -> bool:
         """Add images to an existing Shopify product using productCreateMedia mutation with retry logic"""
         if not media_input:
-            print("No images to upload")
             return True
 
         try:
@@ -766,10 +756,6 @@ class SecondHandProductService:
 
             for i, media_item in enumerate(media_input):
                 try:
-                    print(
-                        f"DEBUG: Uploading image {i+1}/{total_images}: {media_item['originalSource']}"
-                    )
-
                     media_variables = {
                         "productId": product_id,
                         "media": [media_item],  # Upload one at a time
@@ -782,63 +768,32 @@ class SecondHandProductService:
                         media_errors = media_data.get("mediaUserErrors", [])
 
                         if media_errors:
-                            print(f"   ❌ Error uploading image {i+1}: {media_errors}")
                             continue
 
                         created_media = media_data.get("media", [])
                         if created_media:
-                            media_info = created_media[0]
-                            media_id = media_info.get("id")
-                            status = media_info.get("status", "unknown")
-
-                            print(
-                                f"   ✅ Image {i+1} uploaded: {media_id} (status: {status})"
-                            )
-
-                            # Check if image details are available
-                            image_data = media_info.get("image")
-                            if image_data and image_data.get("src"):
-                                print(f"      URL: {image_data['src']}")
-                            else:
-                                print(f"      Image processing in background...")
-
                             successful_uploads += 1
-                        else:
-                            print(f"   ❌ No media returned for image {i+1}")
-                    else:
-                        print(f"   ❌ API error for image {i+1}: {result}")
-
                     # Small delay between uploads to avoid rate limiting
                     if i < total_images - 1:  # Don't delay after the last upload
                         await asyncio.sleep(0.5)
 
                 except Exception as e:
-                    print(f"   ❌ Exception uploading image {i+1}: {str(e)}")
                     continue
-
-            print(
-                f"✅ Successfully uploaded {successful_uploads}/{total_images} images"
-            )
 
             # Wait a moment for processing, then verify uploads
             if successful_uploads > 0:
-                print("⏳ Waiting for image processing...")
                 await asyncio.sleep(2)  # Give Shopify time to process
 
                 # Verify the uploads
                 verified_count = await self._verify_product_images(
                     client, product_id, successful_uploads
                 )
-                print(
-                    f"🔍 Verified {verified_count}/{successful_uploads} images are accessible"
-                )
-
                 return verified_count > 0
 
             return successful_uploads > 0
 
         except Exception as e:
-            print(f"Error adding images to product: {str(e)}")
+            print(f"⚠️ WARNING: Error adding images to product: {str(e)}")
             import traceback
 
             traceback.print_exc()
@@ -907,7 +862,7 @@ class SecondHandProductService:
             return 0
 
         except Exception as e:
-            print(f"Error verifying images: {str(e)}")
+            print(f"⚠️ WARNING: Error verifying images: {str(e)}")
             return 0
 
     async def _add_to_second_hand_collection(
@@ -943,9 +898,7 @@ class SecondHandProductService:
 
             variables = {"id": collection_id, "productIds": [product_id]}
 
-            print(f"DEBUG: Adding product {product_id} to collection {collection_id}")
             result = await client.execute_query(add_product_mutation, variables)
-            print(f"DEBUG: Collection add result: {result}")
 
             # Check for errors
             if (
@@ -954,7 +907,7 @@ class SecondHandProductService:
                 .get("userErrors")
             ):
                 errors = result["data"]["collectionAddProducts"]["userErrors"]
-                print(f"Error adding product to collection: {errors}")
+                print(f"⚠️ WARNING: Error adding product to collection: {errors}")
                 return False
 
             # Check if the operation was successful
@@ -964,18 +917,14 @@ class SecondHandProductService:
                 .get("collection")
             )
             if collection_data:
-                products_count = collection_data.get("productsCount", {}).get(
-                    "count", "unknown"
-                )
-                print(
-                    f"✅ Product added to collection '{collection_data.get('title')}' (Products count: {products_count})"
-                )
                 return True
 
             return False
 
         except Exception as e:
-            print(f"Error adding product to Second Hand collection: {str(e)}")
+            print(
+                f"⚠️ WARNING: Error adding product to Second Hand collection: {str(e)}"
+            )
             import traceback
 
             traceback.print_exc()
@@ -1003,18 +952,15 @@ class SecondHandProductService:
 
             search_variables = {"query": f"title:{collection_title}"}
 
-            print(f"DEBUG: Searching for collection with title '{collection_title}'")
             result = await client.execute_query(find_collection_query, search_variables)
 
             # Check if collection already exists
             collections = result.get("data", {}).get("collections", {}).get("edges", [])
             if collections:
                 collection_id = collections[0]["node"]["id"]
-                print(f"✅ Found existing collection: {collection_id}")
                 return collection_id
 
             # Collection doesn't exist, create it
-            print(f"Collection '{collection_title}' not found, creating new one...")
 
             create_collection_mutation = """
             mutation collectionCreate($input: CollectionInput!) {
@@ -1041,11 +987,9 @@ class SecondHandProductService:
                 }
             }
 
-            print(f"DEBUG: Creating collection with variables: {create_variables}")
             create_result = await client.execute_query(
                 create_collection_mutation, create_variables
             )
-            print(f"DEBUG: Collection creation result: {create_result}")
 
             # Check for creation errors
             if (
@@ -1054,7 +998,7 @@ class SecondHandProductService:
                 .get("userErrors")
             ):
                 errors = create_result["data"]["collectionCreate"]["userErrors"]
-                print(f"Error creating collection: {errors}")
+                print(f"⚠️ WARNING: Error creating collection: {errors}")
                 return None
 
             # Get the created collection ID
@@ -1065,16 +1009,102 @@ class SecondHandProductService:
             )
             if created_collection:
                 collection_id = created_collection["id"]
-                print(
-                    f"✅ Created new collection: {collection_id} - '{created_collection.get('title')}'"
-                )
                 return collection_id
 
             return None
 
         except Exception as e:
-            print(f"Error finding or creating collection: {str(e)}")
+            print(f"⚠️ WARNING: Error finding or creating collection: {str(e)}")
             import traceback
 
             traceback.print_exc()
             return None
+
+    async def _publish_to_online_store(
+        self, client: ShopifyGraphQLClient, product_id: str
+    ) -> bool:
+        """Publish a product to the online store"""
+        try:
+            # First, get the online store publication ID
+            publications_query = """
+            query {
+                publications(first: 10) {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+            """
+
+            publications_result = await client.execute_query(publications_query)
+            publications = (
+                publications_result.get("data", {})
+                .get("publications", {})
+                .get("edges", [])
+            )
+
+            # Find the online store publication
+            online_store_publication_id = None
+            for pub in publications:
+                if pub["node"]["name"] == "Online Store":
+                    online_store_publication_id = pub["node"]["id"]
+                    break
+
+            if not online_store_publication_id:
+                print("⚠️ WARNING: Online Store publication not found")
+                return False
+
+            # Publish the product to the online store
+            publish_mutation = """
+            mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) {
+                publishablePublish(id: $id, input: $input) {
+                    publishable {
+                        availablePublicationCount
+                        publicationCount
+                    }
+                    shop {
+                        publicationCount
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+            """
+
+            publish_variables = {
+                "id": product_id,
+                "input": [
+                    {
+                        "publicationId": online_store_publication_id,
+                        "publishDate": None,  # Publish immediately
+                    }
+                ],
+            }
+
+            publish_result = await client.execute_query(
+                publish_mutation, publish_variables
+            )
+
+            # Check for errors
+            if (
+                publish_result.get("data", {})
+                .get("publishablePublish", {})
+                .get("userErrors")
+            ):
+                errors = publish_result["data"]["publishablePublish"]["userErrors"]
+                print(f"⚠️ WARNING: Error publishing product to online store: {errors}")
+                return False
+
+            return True
+
+        except Exception as e:
+            print(f"⚠️ WARNING: Error publishing product to online store: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+            return False

@@ -1,5 +1,4 @@
 # app/services/shopify_service.py
-import json
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -70,7 +69,7 @@ class ShopifyGraphQLClient:
                             id
                             name
                             values
-                        }
+                            }
                         images(first: 1) {
                             edges {
                                 node {
