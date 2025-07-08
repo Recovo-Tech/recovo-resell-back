@@ -13,7 +13,9 @@ class SecondHandProductRepository(BaseRepository):
     def __init__(self, db: Session):
         super().__init__(db, SecondHandProduct)
 
-    def get_by_id_and_tenant(self, product_id: int, tenant_id: uuid.UUID) -> Optional[SecondHandProduct]:
+    def get_by_id_and_tenant(
+        self, product_id: int, tenant_id: uuid.UUID
+    ) -> Optional[SecondHandProduct]:
         """Get a product by its ID, ensuring it belongs to the correct tenant."""
         return (
             self.db.query(self.model)
@@ -76,6 +78,7 @@ class SecondHandProductRepository(BaseRepository):
             .limit(limit)
             .all()
         )
+
     def get_not_approved_products(
         self, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100
     ) -> List[SecondHandProduct]:

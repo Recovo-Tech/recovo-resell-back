@@ -12,6 +12,7 @@ from app.models.tenant import Tenant
 from app.services import (AuthService, CartService, DiscountService,
                           ProductService, UserService)
 from app.services.shopify_category_service import ShopifyCategoryService
+from app.services.shopify_collection_service import ShopifyCollectionService
 from app.services.tenant_service import TenantService
 
 # Use HTTPBearer instead of OAuth2PasswordBearer for cleaner Swagger UI
@@ -144,6 +145,18 @@ def get_current_tenant_from_token(
         )
 
     return tenant
+
+
+def get_shopify_collection_service(
+    tenant: Tenant = Depends(get_current_tenant_from_token),
+) -> ShopifyCollectionService:
+    """Dependency to get ShopifyCollectionService for the current tenant"""
+    try:
+        return ShopifyCollectionService(tenant)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, detail=f"error.shopify_not_configured_for_tenant: {str(e)}"
+        )
 
 
 def get_shopify_category_service(

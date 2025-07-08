@@ -106,21 +106,30 @@ async def create_second_hand_product(
     if not files or len([f for f in files if f.filename]) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least 3 images are required."
+            detail="At least 3 images are required.",
         )
     for file in files:
-        if file.filename and file.filename.rsplit(".", 1)[-1].lower() not in allowed_extensions:
+        if (
+            file.filename
+            and file.filename.rsplit(".", 1)[-1].lower() not in allowed_extensions
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid image format: {file.filename}. Allowed formats: {', '.join(allowed_extensions)}"
+                detail=f"Invalid image format: {file.filename}. Allowed formats: {', '.join(allowed_extensions)}",
             )
 
     # --- Call the Service to Handle All Business Logic ---
     service = SecondHandProductService(db)
     product_data = {
-        "name": name, "description": description, "price": price,
-        "condition": condition, "original_sku": original_sku, "barcode": barcode,
-        "size": size, "color": color, "return_address": return_address,
+        "name": name,
+        "description": description,
+        "price": price,
+        "condition": condition,
+        "original_sku": original_sku,
+        "barcode": barcode,
+        "size": size,
+        "color": color,
+        "return_address": return_address,
     }
 
     result = await service.create_product_with_images_and_auto_publish(
@@ -135,10 +144,10 @@ async def create_second_hand_product(
         # Check for a specific warning about auto-approval failure
         if result.get("warning"):
             raise HTTPException(
-                status_code=status.HTTP_207_MULTI_STATUS, # Partial success
+                status_code=status.HTTP_207_MULTI_STATUS,  # Partial success
                 detail={
                     "message": "Product created successfully but automatic approval failed",
-                    "product": result.get("product"), # Return the created product data
+                    "product": result.get("product"),  # Return the created product data
                     "warning": result.get("warning"),
                     "warning_details": result.get("warning_details"),
                 },
@@ -180,6 +189,7 @@ async def get_approved_products(
     service = SecondHandProductService(db)
     return service.get_approved_products(current_tenant.id, skip, limit)
 
+
 @router.get("/products/not_approved", response_model=List[SecondHandProduct])
 async def get_not_approved_products(
     skip: int = 0,
@@ -190,6 +200,7 @@ async def get_not_approved_products(
     """Get all approved second-hand products for current tenant"""
     service = SecondHandProductService(db)
     return service.get_not_approved_products(current_tenant.id, skip, limit)
+
 
 @router.get("/products/{product_id}", response_model=SecondHandProduct)
 async def get_product(

@@ -34,37 +34,23 @@ class SecondHandProduct(Base):
     description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
     condition = Column(String(20), nullable=False)  # new, like_new, good, fair, poor
-    original_sku = Column(
-        String(100), nullable=False, index=True
-    )
+    original_sku = Column(String(100), nullable=False, index=True)
     barcode = Column(String(100), nullable=True, index=True)
-    shopify_product_id = Column(
-        String(50), nullable=True
-    )
-    weight = Column(
-        Float, nullable=True
-    )
-    weight_unit = Column(
-        String(20), nullable=True
-    )
+    shopify_product_id = Column(String(50), nullable=True)
+    weight = Column(Float, nullable=True)
+    weight_unit = Column(String(20), nullable=True)
     size = Column(String(50), nullable=True)
     color = Column(String(50), nullable=True)
     return_address = Column(String(255), nullable=True)
 
     original_title = Column(String(200), nullable=True)
     original_description = Column(Text, nullable=True)
-    original_product_type = Column(
-        String(100), nullable=True
-    )
+    original_product_type = Column(String(100), nullable=True)
     original_vendor = Column(String(100), nullable=True)
 
     seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    is_verified = Column(
-        Boolean, default=False
-    )
-    is_approved = Column(
-        Boolean, default=False
-    )
+    is_verified = Column(Boolean, default=False)
+    is_approved = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

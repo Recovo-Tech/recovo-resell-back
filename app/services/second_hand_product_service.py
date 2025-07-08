@@ -65,7 +65,9 @@ class SecondHandProductService:
             # Step 3: Upload images and associate them
             # Get Shopify image URL from verification
             product_info = verification_result.get("product_info", {})
-            shopify_image_url = product_info.get("image_url") or product_info.get("first_image")
+            shopify_image_url = product_info.get("image_url") or product_info.get(
+                "first_image"
+            )
 
             # Upload user images
             user_image_urls = []
@@ -75,18 +77,22 @@ class SecondHandProductService:
                 )
 
             # Combine and add all images
-            all_image_urls = ([shopify_image_url] if shopify_image_url else []) + user_image_urls
+            all_image_urls = (
+                [shopify_image_url] if shopify_image_url else []
+            ) + user_image_urls
             if all_image_urls:
                 self.add_product_images(created_product.id, tenant.id, all_image_urls)
                 self.db.refresh(created_product)
 
             # Step 4: Conditionally auto-approve and publish
             if created_product.is_verified:
-                approval_result = await self.approve_product(created_product.id, tenant.id)
+                approval_result = await self.approve_product(
+                    created_product.id, tenant.id
+                )
                 if not approval_result["success"]:
                     # Product created, but auto-publish failed. Return a warning.
                     return {
-                        "success": True, # The creation itself was successful
+                        "success": True,  # The creation itself was successful
                         "product": created_product,
                         "warning": "Product created but automatic approval failed.",
                         "warning_details": approval_result,
@@ -207,7 +213,9 @@ class SecondHandProductService:
 
         # Exclude protected fields from update_data
         protected_fields = ["id", "seller_id", "tenant_id", "created_at"]
-        valid_update_data = {k: v for k, v in update_data.items() if k not in protected_fields}
+        valid_update_data = {
+            k: v for k, v in update_data.items() if k not in protected_fields
+        }
 
         return self.repository.update(product, valid_update_data)
 

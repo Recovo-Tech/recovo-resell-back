@@ -46,8 +46,7 @@ async def test_collection_assignment():
         print(f"🔄 Testing collection assignment for product: {product_id}")
 
         # Import the service method we need
-        from app.services.second_hand_product_service import \
-            SecondHandProductService
+        from app.services.second_hand_product_service import SecondHandProductService
 
         service = SecondHandProductService(db)
 
