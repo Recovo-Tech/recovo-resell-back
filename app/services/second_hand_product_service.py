@@ -3,12 +3,15 @@ import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 
+from fastapi import UploadFile
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.config.shopify_config import shopify_settings
 from app.models.product import SecondHandProduct, SecondHandProductImage
+from app.models.tenant import Tenant
 from app.models.user import User
+from app.services.file_upload_service import FileUploadService
 from app.services.shopify_service import (ShopifyGraphQLClient,
                                           ShopifyProductVerificationService)
 
@@ -18,6 +21,87 @@ class SecondHandProductService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    async def create_product_with_images_and_auto_publish(
+        self,
+        user_id: uuid.UUID,
+        tenant: Tenant,
+        product_data: dict,
+        files: List[UploadFile],
+    ) -> Dict[str, Any]:
+        """
+        Handles the full product creation workflow: verification, DB creation,
+        image upload, and conditional automatic publishing.
+        """
+        upload_service = FileUploadService()
+        verification_service = ShopifyProductVerificationService(
+            tenant.shopify_app_url, tenant.shopify_access_token
+        )
+
+        created_product = None  # Initialize to None
+
+        try:
+            # Step 1: Verify product eligibility
+            verification_result = await verification_service.verify_product_eligibility(
+                sku=product_data.get("original_sku"),
+                barcode=product_data.get("barcode"),
+            )
+
+            # Step 2: Create the product in the local database
+            create_result = await self.create_second_hand_product(
+                user_id=user_id,
+                tenant_id=tenant.id,
+                verification=verification_result,
+                **product_data,
+            )
+
+            if not create_result["success"]:
+                return create_result  # Return the creation error
+
+            created_product = create_result["product"]
+
+            # Step 3: Upload images and associate them
+            # Get Shopify image URL from verification
+            product_info = verification_result.get("product_info", {})
+            shopify_image_url = product_info.get("image_url") or product_info.get("first_image")
+
+            # Upload user images
+            user_image_urls = []
+            if files and files[0].filename:
+                user_image_urls = await upload_service.upload_multiple_images(
+                    files, user_id=str(user_id), shopify_url=tenant.shopify_app_url
+                )
+
+            # Combine and add all images
+            all_image_urls = ([shopify_image_url] if shopify_image_url else []) + user_image_urls
+            if all_image_urls:
+                self.add_product_images(created_product.id, tenant.id, all_image_urls)
+                self.db.refresh(created_product)
+
+            # Step 4: Conditionally auto-approve and publish
+            if created_product.is_verified:
+                approval_result = await self.approve_product(created_product.id, tenant.id)
+                if not approval_result["success"]:
+                    # Product created, but auto-publish failed. Return a warning.
+                    return {
+                        "success": True, # The creation itself was successful
+                        "product": created_product,
+                        "warning": "Product created but automatic approval failed.",
+                        "warning_details": approval_result,
+                    }
+                self.db.refresh(created_product)
+
+            return {"success": True, "product": created_product}
+
+        except Exception as e:
+            # If anything fails after DB creation, delete the orphaned product
+            if created_product:
+                self.delete_product(created_product.id, user_id, tenant.id)
+            return {
+                "success": False,
+                "error": f"Failed during product creation workflow: {str(e)}",
+                "error_code": "WORKFLOW_ERROR",
+            }
 
     async def create_second_hand_product(
         self,
@@ -32,27 +116,15 @@ class SecondHandProductService:
         color: str = None,
         return_address: str = None,
         barcode: Optional[str] = None,
-        shop_domain: str = None,
-        shopify_access_token: str = None,
+        verification: dict = None,
     ) -> Dict[str, Any]:
         """Create a new second-hand product listing"""
 
         # Verify the product against Shopify store
-        if shop_domain and shopify_access_token:
-            verification_service = ShopifyProductVerificationService(
-                shop_domain, shopify_access_token
-            )
-            verification_result = await verification_service.verify_product_eligibility(
-                sku=original_sku, barcode=barcode
-            )
-
-            if not verification_result["is_verified"]:
-                verification_result = {"is_verified": False, "product_info": {}}
-        else:
-            verification_result = {"is_verified": False, "product_info": {}}
+        is_verified = verification.get("is_verified", False) if verification else False
 
         # Extract product information from verification_result if available
-        product_info = verification_result.get("product_info", {})
+        product_info = verification.get("product_info", {})
         weight = product_info.get("weight")
         weight_unit = product_info.get("weightUnit")
         original_title = product_info.get("title", "")
@@ -73,7 +145,7 @@ class SecondHandProductService:
             barcode=barcode,
             seller_id=user_id,
             tenant_id=tenant_id,  # Add tenant_id
-            is_verified=verification_result["is_verified"],
+            is_verified=is_verified,
             is_approved=False,  # Requires admin approval
             shopify_product_id=product_info.get("shopify_id"),
             weight=weight,
@@ -91,7 +163,7 @@ class SecondHandProductService:
         return {
             "success": True,
             "product": second_hand_product,
-            "verification_info": verification_result,
+            "verification_info": verification,
         }
 
     def get_user_products(

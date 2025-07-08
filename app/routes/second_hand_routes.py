@@ -94,10 +94,7 @@ async def create_second_hand_product(
     db: Session = Depends(get_db),
 ):
     """Create a new second-hand product listing with image uploads in one request"""
-    service = SecondHandProductService(db)
-    upload_service = FileUploadService()
-
-    # Validate condition
+    # --- Input Validation ---
     valid_conditions = ["new", "like_new", "good", "fair", "poor"]
     if condition not in valid_conditions:
         raise HTTPException(
@@ -105,203 +102,58 @@ async def create_second_hand_product(
             detail=f"error.invalid_condition._must_be_one_of: {', '.join(valid_conditions)}",
         )
 
-    # Step 1: Verify the product exists in Shopify first using tenant config
-    verification_service = ShopifyProductVerificationService(
-        current_tenant.shopify_app_url, current_tenant.shopify_access_token
-    )
-
-    verification_result = await verification_service.verify_product_eligibility(
-        sku=original_sku, barcode=barcode
-    )
-
-    # if not verification_result["is_verified"]:
-    #     is_verified = False
-    # else:
-    #     is_verified = True
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail=f"error.product_verification_failed: {verification_result.get('error', 'product_not_found in Shopify')}",
-    #     )
-
-    # Step 2: Create the product in the database
-    result = await service.create_second_hand_product(
-        user_id=current_user.id,
-        tenant_id=current_tenant.id,  # Add tenant_id
-        name=name,
-        description=description,
-        price=price,
-        condition=condition,
-        original_sku=original_sku,
-        barcode=barcode,
-        size=size,
-        color=color,
-        return_address=return_address,
-        shop_domain=current_tenant.shopify_app_url,
-        shopify_access_token=current_tenant.shopify_access_token,
-    )
-
-    if not result["success"]:
-        error_message = result.get(
-            "error", "unknown_error_occurred_while_creating_product"
+    allowed_extensions = {"jpg", "jpeg", "png", "webp"}
+    if not files or len([f for f in files if f.filename]) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least 3 images are required."
         )
-        error_code = result.get("error_code", "PRODUCT_CREATION_FAILED")
+    for file in files:
+        if file.filename and file.filename.rsplit(".", 1)[-1].lower() not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid image format: {file.filename}. Allowed formats: {', '.join(allowed_extensions)}"
+            )
+
+    # --- Call the Service to Handle All Business Logic ---
+    service = SecondHandProductService(db)
+    product_data = {
+        "name": name, "description": description, "price": price,
+        "condition": condition, "original_sku": original_sku, "barcode": barcode,
+        "size": size, "color": color, "return_address": return_address,
+    }
+
+    result = await service.create_product_with_images_and_auto_publish(
+        user_id=current_user.id,
+        tenant=current_tenant,
+        product_data=product_data,
+        files=files,
+    )
+
+    # --- Handle Service Response ---
+    if not result.get("success"):
+        # Check for a specific warning about auto-approval failure
+        if result.get("warning"):
+            raise HTTPException(
+                status_code=status.HTTP_207_MULTI_STATUS, # Partial success
+                detail={
+                    "message": "Product created successfully but automatic approval failed",
+                    "product": result.get("product"), # Return the created product data
+                    "warning": result.get("warning"),
+                    "warning_details": result.get("warning_details"),
+                },
+            )
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
-                "message": "Failed to create second-hand product",
-                "error": error_message,
-                "error_code": error_code,
-                "success": False,
+                "message": "Failed to create product",
+                "error": result.get("error", "An unknown error occurred."),
+                "error_code": result.get("error_code", "PRODUCT_CREATION_FAILED"),
             },
         )
 
-    created_product = result["product"]
-
-    # Step 3: Upload user-submitted images
-    user_image_urls = []
-    if files and files[0].filename:  # Check if files were actually uploaded
-        try:
-            user_image_urls = await upload_service.upload_multiple_images(
-                files,
-                user_id=str(current_user.id),
-                shopify_url=current_tenant.shopify_app_url,  # Use tenant config
-            )
-        except HTTPException:
-            # If image upload fails, we should clean up the created product
-            try:
-                service.delete_product(
-                    created_product.id, current_user.id, current_tenant.id
-                )
-            except Exception as cleanup_error:
-                print(
-                    f"WARNING: Failed to cleanup product {created_product.id} after image upload failure: {cleanup_error}"
-                )
-            raise  # Re-raise the original HTTPException
-        except Exception as e:
-            # If image upload fails, we should clean up the created product
-            try:
-                service.delete_product(
-                    created_product.id, current_user.id, current_tenant.id
-                )
-            except Exception as cleanup_error:
-                print(
-                    f"WARNING: Failed to cleanup product {created_product.id} after image upload failure: {cleanup_error}"
-                )
-
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "message": "Failed to upload images",
-                    "error": str(e),
-                    "error_code": "IMAGE_UPLOAD_FAILED",
-                    "success": False,
-                },
-            )
-
-    # Step 4: Update the product with all image URLs (Shopify + user uploaded)
-    all_image_urls = []
-
-    # Add Shopify image first (if available from verification)
-    shopify_image_url = None
-    product_info = verification_result.get("product_info")
-    if product_info:
-        # Try common keys for image URL
-        shopify_image_url = product_info.get("image_url") or product_info.get(
-            "first_image"
-        )
-    if shopify_image_url:
-        all_image_urls.append(shopify_image_url)
-
-    # Add user uploaded images
-    all_image_urls.extend(user_image_urls)
-
-    # Add all images to the product
-    if all_image_urls:
-        service.add_product_images(
-            created_product.id, current_tenant.id, all_image_urls
-        )
-        db.refresh(created_product)
-
-    # DEBUG: Check verification status before automatic approval
-    print(f"DEBUG ROUTE: Product {created_product.id} verification status:")
-    print(f"  - is_verified: {created_product.is_verified}")
-    print(f"  - is_approved: {created_product.is_approved}")
-    print(f"  - verification_result: {verification_result.get('is_verified')}")
-
-    # If product is verified, automatically approve and publish it
-    if created_product.is_verified:
-        print(
-            f"DEBUG ROUTE: Product {created_product.id} is verified, attempting automatic approval..."
-        )
-        try:
-            approval_result = await service.approve_product(
-                created_product.id, current_tenant.id
-            )
-
-            print(f"DEBUG ROUTE: Approval result: {approval_result}")
-
-            if approval_result["success"]:
-                print(
-                    f"DEBUG ROUTE: Product {created_product.id} automatically approved and published to Shopify"
-                )
-                # Refresh the product to get updated fields (like shopify_product_id)
-                db.refresh(created_product)
-                print(
-                    f"DEBUG ROUTE: After refresh - is_approved: {created_product.is_approved}, shopify_id: {created_product.shopify_product_id}"
-                )
-            else:
-                # Auto-approval failed - this should be a non-fatal error
-                error_message = approval_result.get(
-                    "error", "unknown_error_during_auto-approval"
-                )
-                error_code = approval_result.get("error_code", "AUTO_APPROVAL_FAILED")
-
-                print(
-                    f"WARNING ROUTE: Automatic approval failed for product {created_product.id}: {error_message}"
-                )
-
-                # Return error response for auto-approval failure
-                raise HTTPException(
-                    status_code=status.HTTP_207_MULTI_STATUS,  # Partial success
-                    detail={
-                        "message": "Product created successfully but automatic approval failed",
-                        "product_id": created_product.id,
-                        "error": error_message,
-                        "error_code": error_code,
-                        "success": False,
-                    },
-                )
-
-        except HTTPException:
-            # Re-raise HTTP exceptions (like the one above)
-            raise
-        except Exception as e:
-            error_message = f"Unexpected_error_during_automatic_approval: {str(e)}"
-            print(f"ERROR ROUTE: {error_message}")
-
-            # Log the full traceback for debugging
-            import traceback
-
-            traceback.print_exc()
-
-            # Return error response for unexpected failures
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "message": "Product created successfully but automatic approval encountered an unexpected error",
-                    "product_id": created_product.id,
-                    "error": error_message,
-                    "error_code": "AUTO_APPROVAL_EXCEPTION",
-                    "success": False,
-                },
-            )
-    else:
-        print(
-            f"DEBUG ROUTE: Product {created_product.id} is NOT verified, skipping automatic approval"
-        )
-
-    return created_product
+    return result["product"]
 
 
 @router.get("/products/my", response_model=List[SecondHandProduct])
