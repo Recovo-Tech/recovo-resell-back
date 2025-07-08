@@ -5,19 +5,21 @@ Tests our current implementation against a fresh product
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import uuid
+
 from sqlalchemy.orm import sessionmaker
-from app.models.product import SecondHandProduct, SecondHandProductImage
-from app.models.user import User
-from app.models.tenant import Tenant
+
 from app.config.db_config import engine, get_db
+from app.models.product import SecondHandProduct, SecondHandProductImage
+from app.models.tenant import Tenant
+from app.models.user import User
 from app.services.second_hand_product_service import SecondHandProductService
 from app.services.shopify_service import ShopifyGraphQLClient
-import uuid
 
 
 async def test_final_image_upload():

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import sys
-import requests
-import json
 from uuid import uuid4
+
+import requests
 
 # Add the parent directory     print("\n📋 Summary:")
 print("✅ Tenant name registration (user-friendly)")
-print("✅ Tenant name login (secure and explicit)")  
+print("✅ Tenant name login (secure and explicit)")
 print("✅ JWT token contains tenant context")
 print("✅ Protected endpoints work with token")
 print("✅ Invalid tenant names are rejected")
@@ -55,7 +56,11 @@ def comprehensive_tenant_auth_test():
 
     # Test 2: Login (tenant determined from user record)
     print("\n🔐 Test 2: Login with tenant name")
-    login_data = {"username": test_username, "password": test_password, "tenant_name": "Default Tenant"}
+    login_data = {
+        "username": test_username,
+        "password": test_password,
+        "tenant_name": "Default Tenant",
+    }
 
     try:
         response = requests.post(f"{base_url}/auth/login", json=login_data)

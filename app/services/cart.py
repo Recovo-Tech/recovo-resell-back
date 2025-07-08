@@ -105,7 +105,9 @@ class CartService:
 
         discount = discount_service.get_discount_by_id(discount_id)
         if not discount or not discount.active:
-            raise HTTPException(status_code=400, detail="error.invalid_or_inactive_discount")
+            raise HTTPException(
+                status_code=400, detail="error.invalid_or_inactive_discount"
+            )
 
         totals = self.calculate_totals(user_id)
         if (

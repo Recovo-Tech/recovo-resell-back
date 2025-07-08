@@ -2,16 +2,17 @@
 Script to test the product approval and Shopify publishing process
 """
 
+import asyncio
 import os
 import sys
-import asyncio
+
 import psycopg2
 
 # Add the app directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.second_hand_product_service import SecondHandProductService
 from app.config.db_config import SessionLocal
+from app.services.second_hand_product_service import SecondHandProductService
 
 
 async def test_product_approval():

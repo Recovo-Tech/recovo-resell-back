@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import requests
 import json
+
+import requests
 
 
 def test_exact_curl_command():

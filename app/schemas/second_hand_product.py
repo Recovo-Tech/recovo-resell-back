@@ -1,8 +1,9 @@
 # app/schemas/second_hand_product.py
+import uuid
 from datetime import datetime
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
-import uuid
 
 
 class SecondHandProductImageBase(BaseModel):
@@ -31,6 +32,10 @@ class SecondHandProductBase(BaseModel):
     original_sku: str = Field(..., min_length=1, max_length=100)
     barcode: Optional[str] = Field(None, max_length=100)
     size: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=50)
+    return_address: Optional[str] = Field(None, max_length=255)
+    category_id: Optional[str] = Field(None, max_length=100, description="Shopify taxonomy category ID")
+    category_name: Optional[str] = Field(None, max_length=200, description="Human-readable category name")
 
 
 class SecondHandProductCreate(SecondHandProductBase):
@@ -43,6 +48,10 @@ class SecondHandProductUpdate(BaseModel):
     price: Optional[float] = Field(None, gt=0)
     condition: Optional[str] = Field(None, pattern="^(new|like_new|good|fair|poor)$")
     size: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=50)
+    return_address: Optional[str] = Field(None, max_length=255)
+    category_id: Optional[str] = Field(None, max_length=100, description="Shopify taxonomy category ID")
+    category_name: Optional[str] = Field(None, max_length=200, description="Human-readable category name")
 
 
 class SecondHandProduct(SecondHandProductBase):
@@ -54,6 +63,9 @@ class SecondHandProduct(SecondHandProductBase):
     created_at: datetime
     updated_at: Optional[datetime]
     images: List[SecondHandProductImage] = []
+    # Include category fields from base class
+    category_id: Optional[str] = None
+    category_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -82,7 +94,24 @@ class ProductSearchFilters(BaseModel):
     query: Optional[str] = None
     condition: Optional[str] = Field(None, pattern="^(new|like_new|good|fair|poor)$")
     size: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = Field(None, max_length=50)
     min_price: Optional[float] = Field(None, ge=0)
     max_price: Optional[float] = Field(None, ge=0)
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
+
+
+class ProductCategory(BaseModel):
+    """Schema for product category information"""
+    id: str = Field(..., description="Shopify taxonomy category ID")
+    name: str = Field(..., description="Human-readable category name")
+    full_name: Optional[str] = Field(None, description="Full category path name")
+    level: Optional[int] = Field(None, description="Category hierarchy level")
+    is_leaf: Optional[bool] = Field(None, description="Whether this is a leaf category")
+    parent_id: Optional[str] = Field(None, description="Parent category ID")
+
+
+class CategoryUpdateRequest(BaseModel):
+    """Schema for updating product category"""
+    category_id: str = Field(..., description="Shopify taxonomy category ID")
+    category_name: Optional[str] = Field(None, description="Human-readable category name")

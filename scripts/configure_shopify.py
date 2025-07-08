@@ -4,6 +4,7 @@ Script to configure Shopify settings for the default tenant
 
 import os
 import sys
+
 import psycopg2
 from psycopg2 import sql
 

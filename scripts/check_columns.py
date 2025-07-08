@@ -1,5 +1,6 @@
-import psycopg2
 import os
+
+import psycopg2
 
 conn = psycopg2.connect(
     host=os.getenv("DATABASE_HOSTNAME", "localhost"),
@@ -15,7 +16,7 @@ cursor.execute(
 SELECT column_name 
 FROM information_schema.columns 
 WHERE table_name = 'second_hand_products' 
-AND (column_name LIKE 'original%' OR column_name LIKE 'weight%')
+AND (column_name LIKE 'original%' OR column_name LIKE 'weight%' OR column_name = 'size')
 ORDER BY column_name;
 """
 )

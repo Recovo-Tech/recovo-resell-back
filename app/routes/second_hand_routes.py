@@ -1,26 +1,25 @@
 # app/routes/second_hand_routes.py
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+
+from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
+                     status)
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
-from app.models.user import User
-from app.models.tenant import Tenant
+from app.dependencies import (admin_required, get_current_user,
+                              get_shopify_category_service)
 from app.middleware.tenant_middleware import get_current_tenant
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.schemas.second_hand_product import (CategoryUpdateRequest,
+                                             ProductSearchFilters,
+                                             ProductVerificationRequest,
+                                             ProductVerificationResponse,
+                                             SecondHandProduct,
+                                             SecondHandProductUpdate)
 from app.services.second_hand_product_service import SecondHandProductService
 from app.services.shopify_service import ShopifyProductVerificationService
-from app.services.file_upload_service import FileUploadService
-from app.schemas.second_hand_product import (
-    SecondHandProduct,
-    SecondHandProductCreate,
-    SecondHandProductUpdate,
-    SecondHandProductList,
-    ProductVerificationRequest,
-    ProductVerificationResponse,
-    ProductSearchFilters,
-)
-from app.dependencies import get_current_user, admin_required
-
 
 router = APIRouter(prefix="/second-hand", tags=["Second Hand Products"])
 
@@ -37,7 +36,12 @@ async def verify_product(
     if not current_tenant.shopify_app_url or not current_tenant.shopify_access_token:
         raise HTTPException(
             status_code=400,
-            detail="error.shopify_integration_not_configured_for_this_tenant._please_contact_your_administrator.",
+            detail={
+                "message": "Shopify integration not configured for this tenant",
+                "error": "Missing Shopify configuration",
+                "error_code": "SHOPIFY_NOT_CONFIGURED",
+                "success": False,
+            },
         )
 
     # Use tenant-specific Shopify config
@@ -52,10 +56,24 @@ async def verify_product(
 
         return ProductVerificationResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Invalid verification request",
+                "error": str(e),
+                "error_code": "INVALID_REQUEST",
+                "success": False,
+            },
+        )
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"error.error_verifying_product: {str(e)}"
+            status_code=500,
+            detail={
+                "message": "Error verifying product against Shopify",
+                "error": str(e),
+                "error_code": "VERIFICATION_ERROR",
+                "success": False,
+            },
         )
 
 
@@ -68,16 +86,17 @@ async def create_second_hand_product(
     original_sku: str = Form(...),
     barcode: str = Form(None),
     size: str = Form(None),
+    color: str = Form(None),
+    return_address: str = Form(None),
+    category_id: str = Form(None, description="Shopify taxonomy category ID"),
+    category_name: str = Form(None, description="Human-readable category name"),
     files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
     """Create a new second-hand product listing with image uploads in one request"""
-    service = SecondHandProductService(db)
-    upload_service = FileUploadService()
-
-    # Validate condition
+    # --- Input Validation ---
     valid_conditions = ["new", "like_new", "good", "fair", "poor"]
     if condition not in valid_conditions:
         raise HTTPException(
@@ -85,93 +104,69 @@ async def create_second_hand_product(
             detail=f"error.invalid_condition._must_be_one_of: {', '.join(valid_conditions)}",
         )
 
-    # Step 1: Verify the product exists in Shopify first using tenant config
-    verification_service = ShopifyProductVerificationService(
-        current_tenant.shopify_app_url, current_tenant.shopify_access_token
-    )
-
-    verification_result = await verification_service.verify_product_eligibility(
-        sku=original_sku, barcode=barcode
-    )
-
-    if not verification_result["is_verified"]:
+    allowed_extensions = {"jpg", "jpeg", "png", "webp"}
+    if not files or len([f for f in files if f.filename]) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"error.product_verification_failed: {verification_result.get('error', 'product_not_found in Shopify')}",
+            detail="At least 3 images are required.",
         )
+    for file in files:
+        if (
+            file.filename
+            and file.filename.rsplit(".", 1)[-1].lower() not in allowed_extensions
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid image format: {file.filename}. Allowed formats: {', '.join(allowed_extensions)}",
+            )
 
-    # Step 2: Create the product in the database
-    result = await service.create_second_hand_product(
+    # --- Call the Service to Handle All Business Logic ---
+    service = SecondHandProductService(db)
+    product_data = {
+        "name": name,
+        "description": description,
+        "price": price,
+        "condition": condition,
+        "original_sku": original_sku,
+        "barcode": barcode,
+        "size": size,
+        "color": color,
+        "return_address": return_address,
+        "category_id": category_id,
+        "category_name": category_name,
+    }
+
+    result = await service.create_product_with_images_and_auto_publish(
         user_id=current_user.id,
-        tenant_id=current_tenant.id,  # Add tenant_id
-        name=name,
-        description=description,
-        price=price,
-        condition=condition,
-        original_sku=original_sku,
-        barcode=barcode,
-        size=size,
-        shop_domain=current_tenant.shopify_app_url,  # Use tenant config
-        shopify_access_token=current_tenant.shopify_access_token,  # Use tenant config
+        tenant=current_tenant,
+        product_data=product_data,
+        files=files,
     )
 
-    if not result["success"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"]
-        )
-
-    created_product = result["product"]
-
-    # Step 3: Upload user-submitted images
-    user_image_urls = []
-    if files and files[0].filename:  # Check if files were actually uploaded
-        try:
-            user_image_urls = await upload_service.upload_multiple_images(
-                files,
-                user_id=str(current_user.id),
-                shopify_url=current_tenant.shopify_app_url,  # Use tenant config
-            )
-        except HTTPException:
-            # If image upload fails, we should clean up the created product
-            service.delete_product(
-                created_product.id, current_user.id, current_tenant.id
-            )
-            raise
-        except Exception as e:
-            # If image upload fails, we should clean up the created product
-            service.delete_product(
-                created_product.id, current_user.id, current_tenant.id
-            )
+    # --- Handle Service Response ---
+    if not result.get("success"):
+        # Check for a specific warning about auto-approval failure
+        if result.get("warning"):
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"error.error_uploading_images: {str(e)}",
+                status_code=status.HTTP_207_MULTI_STATUS,  # Partial success
+                detail={
+                    "message": "Product created successfully but automatic approval failed",
+                    "product": result.get("product"),  # Return the created product data
+                    "warning": result.get("warning"),
+                    "warning_details": result.get("warning_details"),
+                },
             )
 
-    # Step 4: Update the product with all image URLs (Shopify + user uploaded)
-    all_image_urls = []
-
-    # Add Shopify image first (if available from verification)
-    shopify_image_url = None
-    product_info = verification_result.get("product_info")
-    if product_info:
-        # Try common keys for image URL
-        shopify_image_url = product_info.get("image_url") or product_info.get(
-            "first_image"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Failed to create product",
+                "error": result.get("error", "An unknown error occurred."),
+                "error_code": result.get("error_code", "PRODUCT_CREATION_FAILED"),
+            },
         )
-    if shopify_image_url:
-        all_image_urls.append(shopify_image_url)
 
-    # Add user uploaded images
-    all_image_urls.extend(user_image_urls)
-
-    # Add all images to the product
-    if all_image_urls:
-        service.add_product_images(
-            created_product.id, current_tenant.id, all_image_urls
-        )
-        db.refresh(created_product)
-
-    return created_product
+    return result["product"]
 
 
 @router.get("/products/my", response_model=List[SecondHandProduct])
@@ -199,6 +194,18 @@ async def get_approved_products(
     return service.get_approved_products(current_tenant.id, skip, limit)
 
 
+@router.get("/products/not_approved", response_model=List[SecondHandProduct])
+async def get_not_approved_products(
+    skip: int = 0,
+    limit: int = 100,
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Get all approved second-hand products for current tenant"""
+    service = SecondHandProductService(db)
+    return service.get_not_approved_products(current_tenant.id, skip, limit)
+
+
 @router.get("/products/{product_id}", response_model=SecondHandProduct)
 async def get_product(
     product_id: int,
@@ -211,7 +218,13 @@ async def get_product(
 
     if not product:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="error.product_not_found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "message": "Product not found",
+                "error": f"No second-hand product found with ID {product_id}",
+                "error_code": "PRODUCT_NOT_FOUND",
+                "success": False,
+            },
         )
 
     return product
@@ -231,14 +244,89 @@ async def update_product(
     # Convert update_data to dict, excluding None values
     update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
 
+    # Check if the product exists and belongs to the user
+    existing_product = service.get_product_by_id(product_id, current_tenant.id)
+    if not existing_product or existing_product.seller_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "message": "Product not found or permission denied",
+                "error": f"No product found with ID {product_id} or you don't have permission to update it",
+                "error_code": "PRODUCT_NOT_FOUND_OR_NO_PERMISSION",
+                "success": False,
+            },
+        )
+
+    # Update the product locally
     product = service.update_product(
         product_id, current_user.id, current_tenant.id, update_dict
     )
 
     if not product:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="error.product_not_found_or_you_don't_have_permission_to_update_it",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "message": "Failed to update product",
+                "error": "Product update failed in database",
+                "error_code": "DATABASE_UPDATE_FAILED",
+                "success": False,
+            },
+        )
+
+    # If the product is published to Shopify, update it there as well
+    shopify_warning = None
+    if product.shopify_product_id and product.is_approved:
+        try:
+            shopify_update_result = await service.update_shopify_product(
+                product_id, current_tenant.id, update_dict
+            )
+            if not shopify_update_result.get("success"):
+                shopify_warning = shopify_update_result.get("error", "Failed to sync changes to Shopify")
+        except Exception as e:
+            shopify_warning = f"Failed to sync changes to Shopify: {str(e)}"
+
+    # Return the updated product with any warnings
+    if shopify_warning:
+        # For warnings, we'll return a 207 Multi-Status with additional info
+        # Convert product to dict for JSON response
+        product_dict = {
+            "id": product.id,
+            "name": product.name,
+            "description": product.description,
+            "price": product.price,
+            "condition": product.condition,
+            "original_sku": product.original_sku,
+            "barcode": product.barcode,
+            "size": product.size,
+            "color": product.color,
+            "return_address": product.return_address,
+            "category_id": product.category_id,
+            "category_name": product.category_name,
+            "seller_id": str(product.seller_id),
+            "is_verified": product.is_verified,
+            "is_approved": product.is_approved,
+            "shopify_product_id": product.shopify_product_id,
+            "created_at": product.created_at.isoformat() if product.created_at else None,
+            "updated_at": product.updated_at.isoformat() if product.updated_at else None,
+            "images": [
+                {
+                    "id": img.id,
+                    "image_url": img.image_url,
+                    "is_primary": img.is_primary,
+                    "created_at": img.created_at.isoformat() if img.created_at else None
+                }
+                for img in product.images
+            ] if product.images else []
+        }
+        
+        return JSONResponse(
+            status_code=207,  # Multi-Status
+            content={
+                "message": "Product updated locally but failed to sync to Shopify",
+                "product": product_dict,
+                "warning": shopify_warning,
+                "success": True,
+            }
         )
 
     return product
@@ -259,10 +347,19 @@ async def delete_product(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="error.product_not_found_or_you_don't_have_permission_to_delete_it",
+            detail={
+                "message": "Product not found or permission denied",
+                "error": f"No product found with ID {product_id} or you don't have permission to delete it",
+                "error_code": "PRODUCT_NOT_FOUND_OR_NO_PERMISSION",
+                "success": False,
+            },
         )
 
-    return {"message": "Product deleted successfully"}
+    return {
+        "message": "Product deleted successfully",
+        "product_id": product_id,
+        "success": True,
+    }
 
 
 @router.post("/products/search", response_model=List[SecondHandProduct])
@@ -279,6 +376,7 @@ async def search_products(
         query=filters.query,
         condition=filters.condition,
         size=filters.size,
+        color=filters.color,
         min_price=filters.min_price,
         max_price=filters.max_price,
         skip=filters.skip,
@@ -295,33 +393,146 @@ async def approve_product(
     db: Session = Depends(get_db),
 ):
     """Approve a second-hand product for sale and publish to Shopify (admin only)"""
+    try:
+        service = SecondHandProductService(db)
+
+        result = await service.approve_product(product_id, current_tenant.id)
+
+        if not result["success"]:
+            if result.get("error_code") == "PRODUCT_NOT_FOUND":
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "message": "Product not found",
+                        "error": f"no_second-hand_product_found_with_ID_{product_id}",
+                        "error_code": "PRODUCT_NOT_FOUND",
+                        "success": False,
+                    },
+                )
+            else:
+                error_code = result.get("error_code", "APPROVAL_FAILED")
+                error_message = result.get(
+                    "error", "unknown_error_during_product_approval"
+                )
+
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "Product approval failed",
+                        "error": error_message,
+                        "error_code": error_code,
+                        "success": False,
+                    },
+                )
+
+        # Return response with appropriate warnings
+        response = {
+            "success": True,
+            "product_id": product_id,
+            "message": result.get("message", "Product approved successfully"),
+        }
+
+        # Include warnings if any
+        if "warning" in result:
+            response["warning"] = result["warning"]
+            response["warning_code"] = result.get("error_code")
+
+        if "shopify_product_id" in result:
+            response["shopify_product_id"] = result["shopify_product_id"]
+
+        return response
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Handle unexpected errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "message": "Unexpected error during product approval",
+                "error": str(e),
+                "error_code": "APPROVAL_EXCEPTION",
+                "success": False,
+            },
+        )
+
+
+@router.put("/products/{product_id}/category")
+async def update_product_category(
+    product_id: int,
+    category_data: CategoryUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Update the category of a second-hand product"""
     service = SecondHandProductService(db)
 
-    result = await service.approve_product(product_id, current_tenant.id)
+    # Check if user owns the product
+    product = service.get_product_by_id(product_id, current_tenant.id)
+    if not product or product.seller_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "message": "Product not found or permission denied",
+                "error": f"No product found with ID {product_id} or you don't have permission to update it",
+                "error_code": "PRODUCT_NOT_FOUND_OR_NO_PERMISSION",
+                "success": False,
+            },
+        )
 
-    if not result["success"]:
-        if result["error_code"] == "PRODUCT_NOT_FOUND":
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="error.product_not_found"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"]
-            )
+    result = await service.update_product_category(
+        product_id, current_tenant.id, category_data.category_id, category_data.category_name
+    )
 
-    # Return response with appropriate warnings
-    response = {
-        "success": True,
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Failed to update product category",
+                "error": result.get("error", "An unknown error occurred."),
+                "error_code": result.get("error_code", "CATEGORY_UPDATE_FAILED"),
+                "success": False,
+            },
+        )
+
+    # Return warning if Shopify update failed but local update succeeded
+    if result.get("warning"):
+        return {
+            "message": result.get("message", "Category updated with warnings"),
+            "product": result["product"],
+            "warning": result.get("warning"),
+            "success": True,
+        }
+
+    return {
+        "message": result.get("message", "Category updated successfully"),
         "product": result["product"],
-        "message": result.get("message", "Product approved successfully"),
+        "success": True,
     }
 
-    # Include warnings if any
-    if "warning" in result:
-        response["warning"] = result["warning"]
-        response["error_code"] = result.get("error_code")
 
-    if "shopify_product_id" in result:
-        response["shopify_product_id"] = result["shopify_product_id"]
-
-    return response
+@router.get("/categories")
+async def get_available_categories(
+    category_service=Depends(get_shopify_category_service),
+):
+    """Get available Shopify taxonomy categories for product categorization"""
+    try:
+        categories = await category_service.get_categories()
+        
+        return {
+            "categories": categories,
+            "total": len(categories),
+            "message": f"Successfully fetched {len(categories)} categories",
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Failed to fetch categories",
+                "error": str(e),
+                "error_code": "CATEGORIES_FETCH_FAILED",
+                "success": False,
+            },
+        )

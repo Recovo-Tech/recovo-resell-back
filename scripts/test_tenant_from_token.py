@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import sys
-import requests
-import json
 from uuid import uuid4
+
+import requests
 
 # Add the parent directory to the path so we can import from app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -55,7 +56,11 @@ def test_tenant_from_token():
         return False
 
     # Step 3: Test login with the new user
-    login_data = {"username": test_username, "password": test_password, "tenant_name": "Default Tenant"}
+    login_data = {
+        "username": test_username,
+        "password": test_password,
+        "tenant_name": "Default Tenant",
+    }
 
     try:
         print(f"🔐 Testing login for: {test_username}")

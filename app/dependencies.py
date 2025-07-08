@@ -1,22 +1,19 @@
 # app/dependencies.py
 
+from uuid import UUID
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 from app.config.db_config import get_db
-from app.models.tenant import Tenant
 from app.middleware.tenant_middleware import get_current_tenant
-from app.services import (
-    AuthService,
-    CartService,
-    DiscountService,
-    ProductService,
-    UserService,
-)
-from app.services.tenant_service import TenantService
+from app.models.tenant import Tenant
+from app.services import (AuthService, CartService, DiscountService,
+                          ProductService, UserService)
 from app.services.shopify_category_service import ShopifyCategoryService
+from app.services.shopify_collection_service import ShopifyCollectionService
+from app.services.tenant_service import TenantService
 
 # Use HTTPBearer instead of OAuth2PasswordBearer for cleaner Swagger UI
 # This allows simple Bearer token authorization without OAuth2 complexity
@@ -24,7 +21,7 @@ security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    credentials = Depends(security),
+    credentials=Depends(security),
     db: Session = Depends(get_db),
 ):
     if not credentials:
@@ -33,7 +30,7 @@ def get_current_user(
             detail="error.authentication_credentials_required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     token = credentials.credentials
     auth_service = AuthService(db)
     payload = auth_service.decode_access_token(token)
@@ -109,7 +106,7 @@ def get_tenant_service(db: Session = Depends(get_db)) -> TenantService:
 
 
 def get_current_tenant_from_token(
-    credentials = Depends(security),
+    credentials=Depends(security),
     db: Session = Depends(get_db),
 ) -> Tenant:
     """Get current tenant directly from JWT token"""
@@ -119,7 +116,7 @@ def get_current_tenant_from_token(
             detail="error.authentication_credentials_required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     token = credentials.credentials
     auth_service = AuthService(db)
     payload = auth_service.decode_access_token(token)
@@ -150,15 +147,25 @@ def get_current_tenant_from_token(
     return tenant
 
 
+def get_shopify_collection_service(
+    tenant: Tenant = Depends(get_current_tenant_from_token),
+) -> ShopifyCollectionService:
+    """Dependency to get ShopifyCollectionService for the current tenant"""
+    try:
+        return ShopifyCollectionService(tenant)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, detail=f"error.shopify_not_configured_for_tenant: {str(e)}"
+        )
+
 
 def get_shopify_category_service(
-    tenant: Tenant = Depends(get_current_tenant_from_token)
+    tenant: Tenant = Depends(get_current_tenant_from_token),
 ) -> ShopifyCategoryService:
     """Dependency to get ShopifyCategoryService for the current tenant"""
     try:
         return ShopifyCategoryService(tenant)
     except ValueError as e:
         raise HTTPException(
-            status_code=400, 
-            detail=f"error.shopify_not_configured_for_tenant: {str(e)}"
+            status_code=400, detail=f"error.shopify_not_configured_for_tenant: {str(e)}"
         )

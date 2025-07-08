@@ -2,9 +2,10 @@
 Script to test Shopify connection and check if products exist
 """
 
+import asyncio
 import os
 import sys
-import asyncio
+
 import psycopg2
 
 # Add the app directory to the path

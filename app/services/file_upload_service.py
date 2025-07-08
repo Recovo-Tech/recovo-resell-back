@@ -1,11 +1,12 @@
+import io
 import os
 import uuid
 from typing import List
-from fastapi import UploadFile, HTTPException, status
-from PIL import Image
-import io
+
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import HTTPException, UploadFile, status
+from PIL import Image
 
 from app.config.aws_config import aws_settings
 
@@ -27,7 +28,8 @@ class FileUploadService:
     def _validate_image(self, file: UploadFile) -> None:
         if not file.filename:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="error.filename_is_required"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="error.filename_is_required",
             )
         file_extension = os.path.splitext(file.filename)[1].lower()
         if file_extension not in self.allowed_extensions:

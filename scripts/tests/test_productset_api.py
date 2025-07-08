@@ -5,18 +5,20 @@ Tests the modern Shopify GraphQL API with files directly included
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy.orm import sessionmaker
-from app.models.second_hand_product import SecondHandProduct
-from app.models.user import User
-from app.models.tenant import Tenant
-from app.config.db_config import engine, get_db
-from app.services.second_hand_product_service import SecondHandProductService
 import uuid
+
+from sqlalchemy.orm import sessionmaker
+
+from app.config.db_config import engine, get_db
+from app.models.second_hand_product import SecondHandProduct
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.services.second_hand_product_service import SecondHandProductService
 
 
 async def test_productset_api():

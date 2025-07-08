@@ -2,17 +2,18 @@
 Script to test Shopify product creation directly
 """
 
+import asyncio
 import os
 import sys
-import asyncio
+
 import psycopg2
 
 # Add the app directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.shopify_service import ShopifyGraphQLClient
-from app.services.second_hand_product_service import SecondHandProductService
 from app.config.db_config import SessionLocal
+from app.services.second_hand_product_service import SecondHandProductService
+from app.services.shopify_service import ShopifyGraphQLClient
 
 
 async def test_shopify_product_creation():

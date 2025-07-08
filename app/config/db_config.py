@@ -1,10 +1,11 @@
 import logging
 import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists
-from dotenv import load_dotenv
 
 # Load environment variables from .env file
 

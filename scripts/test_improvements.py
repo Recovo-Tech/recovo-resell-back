@@ -6,19 +6,20 @@ Script to test the improvements to product approval and Shopify publishing:
 4. Error handling provides proper user feedback
 """
 
+import asyncio
 import os
 import sys
-import asyncio
-import psycopg2
 import uuid
 from datetime import datetime
+
+import psycopg2
 
 # Add the app directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from app.config.db_config import SessionLocal
 from app.services.second_hand_product_service import SecondHandProductService
 from app.services.shopify_service import ShopifyGraphQLClient
-from app.config.db_config import SessionLocal
 
 
 async def test_improvements():

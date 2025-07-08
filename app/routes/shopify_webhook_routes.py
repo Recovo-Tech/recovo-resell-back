@@ -2,13 +2,13 @@
 import hashlib
 import hmac
 import json
-from fastapi import APIRouter, Request, HTTPException, status, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
 from app.config.shopify_config import shopify_settings
 from app.models.product import SecondHandProduct
-
 
 router = APIRouter(prefix="/webhooks/shopify", tags=["Shopify Webhooks"])
 
@@ -40,7 +40,8 @@ async def handle_product_update(request: Request, db: Session = Depends(get_db))
     # Verify webhook signature
     if not verify_webhook_signature(body, signature):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="error.Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="error.Invalid webhook signature",
         )
 
     try:
@@ -129,7 +130,8 @@ async def handle_product_delete(request: Request, db: Session = Depends(get_db))
     # Verify webhook signature
     if not verify_webhook_signature(body, signature):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="error.Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="error.Invalid webhook signature",
         )
 
     try:

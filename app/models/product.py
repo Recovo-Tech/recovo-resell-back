@@ -1,15 +1,7 @@
 # app/models/product.py
 
-from sqlalchemy import (
-    Column,
-    Float,
-    Integer,
-    String,
-    Text,
-    Boolean,
-    DateTime,
-    ForeignKey,
-)
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer,
+                        String, Text)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -28,8 +20,6 @@ class Product(Base):
     description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
     stock = Column(Integer, nullable=False)
-
-    # Relationships
     tenant = relationship("Tenant")
 
 
@@ -44,40 +34,30 @@ class SecondHandProduct(Base):
     description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
     condition = Column(String(20), nullable=False)  # new, like_new, good, fair, poor
-    original_sku = Column(
-        String(100), nullable=False, index=True
-    )  # Original product SKU from store
-    barcode = Column(String(100), nullable=True, index=True)  # Product barcode
-    shopify_product_id = Column(
-        String(50), nullable=True
-    )  # Shopify product ID for verification
-    weight = Column(
-        Float, nullable=True
-    )  # Product weight from original Shopify product
-    weight_unit = Column(
-        String(20), nullable=True
-    )  # Weight unit (GRAMS, KILOGRAMS, etc.)
-    size = Column(String(50), nullable=True)  # Product size (S, M, L, XL, etc.)
+    original_sku = Column(String(100), nullable=False, index=True)
+    barcode = Column(String(100), nullable=True, index=True)
+    shopify_product_id = Column(String(50), nullable=True)
+    weight = Column(Float, nullable=True)
+    weight_unit = Column(String(20), nullable=True)
+    size = Column(String(50), nullable=True)
+    color = Column(String(50), nullable=True)
+    return_address = Column(String(255), nullable=True)
 
-    # Original product information from Shopify store
-    original_title = Column(String(200), nullable=True)  # Original product title
-    original_description = Column(Text, nullable=True)  # Original product description
-    original_product_type = Column(
-        String(100), nullable=True
-    )  # Original product type/category
-    original_vendor = Column(String(100), nullable=True)  # Original vendor/brand
+    original_title = Column(String(200), nullable=True)
+    original_description = Column(Text, nullable=True)
+    original_product_type = Column(String(100), nullable=True)
+    original_vendor = Column(String(100), nullable=True)
+    
+    # Shopify taxonomy category fields
+    category_id = Column(String(100), nullable=True)  # Shopify taxonomy category ID
+    category_name = Column(String(200), nullable=True)  # Human-readable category name
 
     seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    is_verified = Column(
-        Boolean, default=False
-    )  # Whether the product SKU/barcode is verified
-    is_approved = Column(
-        Boolean, default=False
-    )  # Whether the product is approved for sale
+    is_verified = Column(Boolean, default=False)
+    is_approved = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     tenant = relationship("Tenant")
     seller = relationship("User", back_populates="second_hand_products")
     images = relationship(
@@ -94,5 +74,4 @@ class SecondHandProductImage(Base):
     is_primary = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
     product = relationship("SecondHandProduct", back_populates="images")

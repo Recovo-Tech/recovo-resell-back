@@ -1,8 +1,10 @@
 # app/services/tenant_service.py
 
-from typing import Optional, List
 import uuid
+from typing import List, Optional
+
 from sqlalchemy.orm import Session
+
 from app.models.tenant import Tenant
 from app.schemas.tenant import TenantCreate, TenantUpdate
 

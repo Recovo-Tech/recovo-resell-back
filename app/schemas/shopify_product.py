@@ -1,11 +1,13 @@
 # app/schemas/shopify_product.py
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
 
 class ProductOption(BaseModel):
     """Shopify product option (Color, Size, etc.)"""
+
     id: str
     name: str
     values: List[str]
@@ -13,12 +15,14 @@ class ProductOption(BaseModel):
 
 class ProductVariantOption(BaseModel):
     """Product variant specific option values"""
+
     name: str
     value: str
 
 
 class ProductVariant(BaseModel):
     """Shopify product variant"""
+
     id: str
     shopify_id: str
     title: str
@@ -35,6 +39,7 @@ class ProductVariant(BaseModel):
 
 class ProductImage(BaseModel):
     """Shopify product image"""
+
     id: str
     url: str
     alt_text: str
@@ -42,6 +47,7 @@ class ProductImage(BaseModel):
 
 class ProductCollection(BaseModel):
     """Shopify product collection/category"""
+
     id: str
     shopify_id: str
     title: str
@@ -50,6 +56,7 @@ class ProductCollection(BaseModel):
 
 class ShopifyProduct(BaseModel):
     """Complete Shopify product"""
+
     id: str
     shopify_id: str
     title: str
@@ -70,6 +77,7 @@ class ShopifyProduct(BaseModel):
 
 class ProductPagination(BaseModel):
     """Pagination information"""
+
     page: int
     limit: int
     has_next_page: bool
@@ -80,6 +88,7 @@ class ProductPagination(BaseModel):
 
 class ProductListResponse(BaseModel):
     """Response for paginated product listing"""
+
     products: List[ShopifyProduct]
     pagination: ProductPagination
     tenant_id: str
@@ -87,6 +96,7 @@ class ProductListResponse(BaseModel):
 
 class ProductFiltersRequest(BaseModel):
     """Request filters for product listing"""
+
     collection_id: Optional[str] = None
     product_type: Optional[str] = None
     vendor: Optional[str] = None
@@ -97,6 +107,7 @@ class ProductFiltersRequest(BaseModel):
 
 class ProductSearchRequest(BaseModel):
     """Advanced product search request"""
+
     query: str
     filters: Optional[ProductFiltersRequest] = None
     page: int = 1
@@ -105,6 +116,7 @@ class ProductSearchRequest(BaseModel):
 
 class FilterOption(BaseModel):
     """Available filter option"""
+
     id: str
     title: str
     handle: str
@@ -112,6 +124,7 @@ class FilterOption(BaseModel):
 
 class AvailableFilters(BaseModel):
     """Available filters for products"""
+
     collections: List[FilterOption]
     product_types: List[str]
     vendors: List[str]

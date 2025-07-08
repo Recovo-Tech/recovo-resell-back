@@ -1,16 +1,18 @@
 # app/routes/tenant_routes.py
 
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
-from app.models.user import User
-from app.models.tenant import Tenant
-from app.middleware.tenant_middleware import get_current_tenant
-from app.services.tenant_service import TenantService
-from app.schemas.tenant import Tenant as TenantSchema, TenantCreate, TenantUpdate
 from app.dependencies import admin_required
+from app.middleware.tenant_middleware import get_current_tenant
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.schemas.tenant import Tenant as TenantSchema
+from app.schemas.tenant import TenantCreate, TenantUpdate
+from app.services.tenant_service import TenantService
 
 router = APIRouter(prefix="/admin/tenants", tags=["Tenant Management"])
 
