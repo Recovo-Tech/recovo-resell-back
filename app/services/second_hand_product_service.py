@@ -11,6 +11,7 @@ from app.config.shopify_config import shopify_settings
 from app.models.product import SecondHandProduct, SecondHandProductImage
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.repositories.second_hand_product import SecondHandProductRepository
 from app.services.file_upload_service import FileUploadService
 from app.services.shopify_service import (ShopifyGraphQLClient,
                                           ShopifyProductVerificationService)
@@ -21,6 +22,7 @@ class SecondHandProductService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.repository = SecondHandProductRepository(db)
 
     async def create_product_with_images_and_auto_publish(
         self,
@@ -96,7 +98,7 @@ class SecondHandProductService:
         except Exception as e:
             # If anything fails after DB creation, delete the orphaned product
             if created_product:
-                self.delete_product(created_product.id, user_id, tenant.id)
+                self.repository.delete(created_product)
             return {
                 "success": False,
                 "error": f"Failed during product creation workflow: {str(e)}",
@@ -156,13 +158,11 @@ class SecondHandProductService:
             original_vendor=original_vendor,
         )
 
-        self.db.add(second_hand_product)
-        self.db.commit()
-        self.db.refresh(second_hand_product)
+        created_product = self.repository.create(second_hand_product)
 
         return {
             "success": True,
-            "product": second_hand_product,
+            "product": created_product,
             "verification_info": verification,
         }
 
@@ -170,51 +170,19 @@ class SecondHandProductService:
         self, user_id: uuid.UUID, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100
     ) -> List[SecondHandProduct]:
         """Get all second-hand products for a user within their tenant"""
-        return (
-            self.db.query(SecondHandProduct)
-            .filter(
-                and_(
-                    SecondHandProduct.seller_id == user_id,
-                    SecondHandProduct.tenant_id == tenant_id,
-                )
-            )
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        return self.repository.get_user_products(user_id, tenant_id, skip, limit)
 
     def get_approved_products(
         self, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100
     ) -> List[SecondHandProduct]:
         """Get all approved second-hand products for public listing within tenant"""
-        return (
-            self.db.query(SecondHandProduct)
-            .filter(
-                and_(
-                    SecondHandProduct.is_approved == True,
-                    SecondHandProduct.is_verified == True,
-                    SecondHandProduct.tenant_id == tenant_id,
-                )
-            )
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        return self.repository.get_approved_products(tenant_id, skip, limit)
 
     def get_product_by_id(
         self, product_id: int, tenant_id: uuid.UUID
     ) -> Optional[SecondHandProduct]:
         """Get a second-hand product by ID within tenant"""
-        return (
-            self.db.query(SecondHandProduct)
-            .filter(
-                and_(
-                    SecondHandProduct.id == product_id,
-                    SecondHandProduct.tenant_id == tenant_id,
-                )
-            )
-            .first()
-        )
+        return self.repository.get_by_id_and_tenant(product_id, tenant_id)
 
     def update_product(
         self,
@@ -224,55 +192,31 @@ class SecondHandProductService:
         update_data: Dict[str, Any],
     ) -> Optional[SecondHandProduct]:
         """Update a second-hand product (only by owner within tenant)"""
-        product = (
-            self.db.query(SecondHandProduct)
-            .filter(
-                and_(
-                    SecondHandProduct.id == product_id,
-                    SecondHandProduct.seller_id == user_id,
-                    SecondHandProduct.tenant_id == tenant_id,
-                )
-            )
-            .first()
+        product = self.repository.get_by_id_and_user_and_tenant(
+            product_id, user_id, tenant_id
         )
 
         if not product:
             return None
 
-        for field, value in update_data.items():
-            if hasattr(product, field) and field not in [
-                "id",
-                "seller_id",
-                "tenant_id",
-                "created_at",
-            ]:
-                setattr(product, field, value)
+        # Exclude protected fields from update_data
+        protected_fields = ["id", "seller_id", "tenant_id", "created_at"]
+        valid_update_data = {k: v for k, v in update_data.items() if k not in protected_fields}
 
-        self.db.commit()
-        self.db.refresh(product)
-        return product
+        return self.repository.update(product, valid_update_data)
 
     def delete_product(
         self, product_id: int, user_id: uuid.UUID, tenant_id: uuid.UUID
     ) -> bool:
         """Delete a second-hand product (only by owner within tenant)"""
-        product = (
-            self.db.query(SecondHandProduct)
-            .filter(
-                and_(
-                    SecondHandProduct.id == product_id,
-                    SecondHandProduct.seller_id == user_id,
-                    SecondHandProduct.tenant_id == tenant_id,
-                )
-            )
-            .first()
+        product = self.repository.get_by_id_and_user_and_tenant(
+            product_id, user_id, tenant_id
         )
 
         if not product:
             return False
 
-        self.db.delete(product)
-        self.db.commit()
+        self.repository.delete(product)
         return True
 
     async def approve_product(
@@ -764,33 +708,17 @@ class SecondHandProductService:
         limit: int = 100,
     ) -> List[SecondHandProduct]:
         """Search approved second-hand products with filters within tenant"""
-        db_query = self.db.query(SecondHandProduct).filter(
-            and_(
-                SecondHandProduct.is_approved == True,
-                SecondHandProduct.is_verified == True,
-                SecondHandProduct.tenant_id == tenant_id,
-            )
+        return self.repository.search(
+            tenant_id=tenant_id,
+            query=query,
+            condition=condition,
+            size=size,
+            color=color,
+            min_price=min_price,
+            max_price=max_price,
+            skip=skip,
+            limit=limit,
         )
-
-        if query:
-            db_query = db_query.filter(SecondHandProduct.name.ilike(f"%{query}%"))
-
-        if condition:
-            db_query = db_query.filter(SecondHandProduct.condition == condition)
-
-        if size:
-            db_query = db_query.filter(SecondHandProduct.size == size)
-
-        if color:
-            db_query = db_query.filter(SecondHandProduct.color == color)
-
-        if min_price is not None:
-            db_query = db_query.filter(SecondHandProduct.price >= min_price)
-
-        if max_price is not None:
-            db_query = db_query.filter(SecondHandProduct.price <= max_price)
-
-        return db_query.offset(skip).limit(limit).all()
 
     async def _add_images_to_product(
         self, client: ShopifyGraphQLClient, product_id: str, media_input: list
