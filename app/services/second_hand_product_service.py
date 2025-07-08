@@ -178,6 +178,12 @@ class SecondHandProductService:
         """Get all approved second-hand products for public listing within tenant"""
         return self.repository.get_approved_products(tenant_id, skip, limit)
 
+    def get_not_approved_products(
+        self, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100
+    ) -> List[SecondHandProduct]:
+        """Get all approved second-hand products for public listing within tenant"""
+        return self.repository.get_not_approved_products(tenant_id, skip, limit)
+
     def get_product_by_id(
         self, product_id: int, tenant_id: uuid.UUID
     ) -> Optional[SecondHandProduct]:

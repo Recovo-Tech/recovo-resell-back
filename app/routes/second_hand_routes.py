@@ -180,6 +180,16 @@ async def get_approved_products(
     service = SecondHandProductService(db)
     return service.get_approved_products(current_tenant.id, skip, limit)
 
+@router.get("/products/not_approved", response_model=List[SecondHandProduct])
+async def get_not_approved_products(
+    skip: int = 0,
+    limit: int = 100,
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Get all approved second-hand products for current tenant"""
+    service = SecondHandProductService(db)
+    return service.get_not_approved_products(current_tenant.id, skip, limit)
 
 @router.get("/products/{product_id}", response_model=SecondHandProduct)
 async def get_product(

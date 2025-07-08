@@ -76,6 +76,22 @@ class SecondHandProductRepository(BaseRepository):
             .limit(limit)
             .all()
         )
+    def get_not_approved_products(
+        self, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100
+    ) -> List[SecondHandProduct]:
+        """Get all not approved  for public listing within a tenant."""
+        return (
+            self.db.query(self.model)
+            .filter(
+                and_(
+                    self.model.is_approved == False,
+                    self.model.tenant_id == tenant_id,
+                )
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def search(
         self,
