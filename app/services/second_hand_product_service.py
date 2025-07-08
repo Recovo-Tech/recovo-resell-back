@@ -124,6 +124,8 @@ class SecondHandProductService:
         color: str = None,
         return_address: str = None,
         barcode: Optional[str] = None,
+        category_id: Optional[str] = None,
+        category_name: Optional[str] = None,
         verification: dict = None,
     ) -> Dict[str, Any]:
         """Create a new second-hand product listing"""
@@ -162,6 +164,8 @@ class SecondHandProductService:
             original_description=original_description,
             original_product_type=original_product_type,
             original_vendor=original_vendor,
+            category_id=category_id,
+            category_name=category_name,
         )
 
         created_product = self.repository.create(second_hand_product)
@@ -217,7 +221,12 @@ class SecondHandProductService:
             k: v for k, v in update_data.items() if k not in protected_fields
         }
 
-        return self.repository.update(product, valid_update_data)
+        updated_product = self.repository.update(product, valid_update_data)
+        
+        # Note: For async Shopify updates when category changes, use the dedicated 
+        # update_product_category method instead of this synchronous method
+        
+        return updated_product
 
     def delete_product(
         self, product_id: int, user_id: uuid.UUID, tenant_id: uuid.UUID
@@ -401,6 +410,10 @@ class SecondHandProductService:
                             productType
                             vendor
                             publishedAt
+                            category {
+                                id
+                                name
+                            }
                             variants(first: 1) {
                                 edges {
                                     node {
@@ -424,49 +437,55 @@ class SecondHandProductService:
                 """
 
             # Prepare product input using the proven ProductInput structure
+            product_input = {
+                "title": f"{product.name} (Second-Hand)",
+                "descriptionHtml": enhanced_description,
+                "vendor": vendor,
+                "productType": product_type,
+                "status": "ACTIVE",
+                "published": True,  # Publish to online store
+                "productOptions": [
+                    {
+                        "name": "Size",
+                        "values": [
+                            {"name": product.size if product.size else "One Size"},
+                        ],
+                    },
+                    {
+                        "name": "Color",
+                        "values": [
+                            {"name": product.color if product.color else "Default"},
+                        ],
+                    },
+                ],
+                "tags": [
+                    "second-hand",
+                    product.condition,
+                    "marketplace",
+                    "pre-owned",
+                ],
+                "variants": [
+                    {
+                        "price": str(product.price),
+                        "compareAtPrice": None,
+                        "inventoryManagement": "SHOPIFY",
+                        "inventoryPolicy": "DENY",
+                        "sku": f"SH-{product.id}-{product.original_sku}",
+                        "barcode": product.barcode if product.barcode else None,
+                        "weight": weight_value,
+                        "weightUnit": weight_unit,
+                        "requiresShipping": True,
+                        "taxable": True,
+                    }
+                ],
+            }
+            
+            # Add category if available
+            if product.category_id:
+                product_input["categoryId"] = product.category_id
+
             product_variables = {
-                "input": {
-                    "title": f"{product.name} (Second-Hand)",
-                    "descriptionHtml": enhanced_description,
-                    "vendor": vendor,
-                    "productType": product_type,
-                    "status": "ACTIVE",
-                    "published": True,  # Publish to online store
-                    "productOptions": [
-                        {
-                            "name": "Size",
-                            "values": [
-                                {"name": product.size if product.size else "One Size"},
-                            ],
-                        },
-                        {
-                            "name": "Color",
-                            "values": [
-                                {"name": product.color if product.color else "Default"},
-                            ],
-                        },
-                    ],
-                    "tags": [
-                        "second-hand",
-                        product.condition,
-                        "marketplace",
-                        "pre-owned",
-                    ],
-                    "variants": [
-                        {
-                            "price": str(product.price),
-                            "compareAtPrice": None,
-                            "inventoryManagement": "SHOPIFY",
-                            "inventoryPolicy": "DENY",
-                            "sku": f"SH-{product.id}-{product.original_sku}",
-                            "barcode": product.barcode if product.barcode else None,
-                            "weight": weight_value,
-                            "weightUnit": weight_unit,
-                            "requiresShipping": True,
-                            "taxable": True,
-                        }
-                    ],
-                }
+                "input": product_input
             }
 
             result = await client.execute_query(mutation, product_variables)
@@ -1122,3 +1141,291 @@ class SecondHandProductService:
 
             traceback.print_exc()
             return False
+
+    async def update_product_category(
+        self, 
+        product_id: int, 
+        tenant_id: uuid.UUID, 
+        category_id: str, 
+        category_name: str = None
+    ) -> Dict[str, Any]:
+        """Update the category of a product both locally and in Shopify"""
+        try:
+            # Get the product
+            product = self.get_product_by_id(product_id, tenant_id)
+            if not product:
+                return {
+                    "success": False,
+                    "error": "Product not found",
+                    "error_code": "PRODUCT_NOT_FOUND",
+                }
+
+            # Update local database
+            product.category_id = category_id
+            product.category_name = category_name
+            self.db.commit()
+            self.db.refresh(product)
+
+            # Update Shopify if product is published there
+            if product.shopify_product_id and product.tenant:
+                tenant = product.tenant
+                if tenant.shopify_app_url and tenant.shopify_access_token:
+                    shopify_client = ShopifyGraphQLClient(
+                        tenant.shopify_app_url, tenant.shopify_access_token
+                    )
+                    
+                    shopify_success = await self._update_shopify_product_category(
+                        shopify_client, product.shopify_product_id, category_id
+                    )
+                    
+                    if not shopify_success:
+                        return {
+                            "success": True,
+                            "product": product,
+                            "warning": "Product category updated locally but failed to update in Shopify",
+                            "error_code": "SHOPIFY_UPDATE_FAILED",
+                        }
+
+            return {
+                "success": True,
+                "product": product,
+                "message": "Product category updated successfully",
+            }
+
+        except Exception as e:
+            self.db.rollback()
+            return {
+                "success": False,
+                "error": f"Failed to update product category: {str(e)}",
+                "error_code": "UPDATE_ERROR",
+            }
+
+    async def _update_shopify_product_category(
+        self, client: ShopifyGraphQLClient, shopify_product_id: str, category_id: str
+    ) -> bool:
+        """Update the category of an existing Shopify product"""
+        try:
+            mutation = """
+            mutation productUpdate($input: ProductInput!) {
+                productUpdate(input: $input) {
+                    product {
+                        id
+                        title
+                        category {
+                            id
+                            name
+                        }
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+            """
+
+            variables = {
+                "input": {
+                    "id": shopify_product_id,
+                    "categoryId": category_id,
+                }
+            }
+
+            result = await client.execute_query(mutation, variables)
+
+            # Check for errors
+            if result.get("errors"):
+                print(f"GraphQL errors updating product category: {result['errors']}")
+                return False
+
+            if result.get("data", {}).get("productUpdate", {}).get("userErrors"):
+                errors = result["data"]["productUpdate"]["userErrors"]
+                print(f"User errors updating product category: {errors}")
+                return False
+
+            return True
+
+        except Exception as e:
+            print(f"Error updating Shopify product category: {str(e)}")
+            return False
+
+    async def update_shopify_product(
+        self, 
+        product_id: int, 
+        tenant_id: uuid.UUID, 
+        update_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Update a product in Shopify with the provided changes"""
+        try:
+            # Get the product
+            product = self.get_product_by_id(product_id, tenant_id)
+            if not product or not product.shopify_product_id:
+                return {
+                    "success": False,
+                    "error": "Product not found or not published to Shopify",
+                    "error_code": "PRODUCT_NOT_FOUND_OR_NOT_PUBLISHED",
+                }
+
+            # Get tenant and Shopify client
+            tenant = product.tenant
+            if not tenant or not tenant.shopify_app_url or not tenant.shopify_access_token:
+                return {
+                    "success": False,
+                    "error": "Shopify credentials not configured for tenant",
+                    "error_code": "SHOPIFY_NOT_CONFIGURED",
+                }
+
+            shopify_client = ShopifyGraphQLClient(
+                tenant.shopify_app_url, tenant.shopify_access_token
+            )
+
+            # Build the update input for Shopify
+            shopify_update_input = {
+                "id": product.shopify_product_id,
+            }
+
+            # Map local fields to Shopify fields
+            if "name" in update_data:
+                shopify_update_input["title"] = f"{update_data['name']} (Second-Hand)"
+            
+            if "description" in update_data:
+                # Rebuild the enhanced description
+                description_parts = []
+                
+                # Add updated description
+                if update_data["description"]:
+                    description_parts.append(f"<p>{update_data['description']}</p>")
+                
+                # Add original description if available
+                if product.original_description:
+                    description_parts.append(f"<h3>Original Description:</h3>")
+                    if product.original_description.startswith("<"):
+                        description_parts.append(product.original_description)
+                    else:
+                        description_parts.append(f"<p>{product.original_description}</p>")
+                
+                # Add product details section
+                condition = update_data.get("condition", product.condition)
+                size = update_data.get("size", product.size)
+                color = update_data.get("color", product.color)
+                return_address = update_data.get("return_address", product.return_address)
+                
+                details_html = f"""
+                    <h3>Product Details</h3>
+                    <ul>
+                        <li><strong>Condition:</strong> {condition.replace('_', ' ').title()}</li>
+                        <li><strong>Original SKU:</strong> {product.original_sku}</li>
+                        {f'<li><strong>Barcode:</strong> {product.barcode}</li>' if product.barcode else ''}
+                        {f'<li><strong>Size:</strong> {size}</li>' if size else ''}
+                        {f'<li><strong>Color:</strong> {color}</li>' if color else ''}
+                        {f'<li><strong>Original Brand:</strong> {product.original_vendor}</li>' if product.original_vendor else ''}
+                        {f'<li><strong>Weight:</strong> {product.weight} {product.weight_unit}</li>' if product.weight else ''}
+                        {f'<li><strong>Return Address:</strong> {return_address}</li>' if return_address else ''}
+                    </ul>
+                    <p><em>This is a high-quality second-hand item sold through our marketplace platform.</em></p>
+                """
+                description_parts.append(details_html)
+                shopify_update_input["descriptionHtml"] = "".join(description_parts)
+            
+            if "category_id" in update_data:
+                shopify_update_input["categoryId"] = update_data["category_id"]
+            
+            # Handle price updates (requires variant update)
+            price_update_needed = "price" in update_data
+            
+            # Update the main product
+            mutation = """
+            mutation productUpdate($input: ProductInput!) {
+                productUpdate(input: $input) {
+                    product {
+                        id
+                        title
+                        category {
+                            id
+                            name
+                        }
+                        variants(first: 1) {
+                            edges {
+                                node {
+                                    id
+                                    price
+                                }
+                            }
+                        }
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+            """
+
+            variables = {"input": shopify_update_input}
+            result = await shopify_client.execute_query(mutation, variables)
+
+            # Check for errors
+            if result.get("errors"):
+                return {
+                    "success": False,
+                    "error": f"GraphQL errors: {result['errors']}",
+                    "error_code": "GRAPHQL_ERROR",
+                }
+
+            user_errors = result.get("data", {}).get("productUpdate", {}).get("userErrors", [])
+            if user_errors:
+                error_messages = [f"{err.get('field', 'unknown')}: {err.get('message', 'unknown error')}" for err in user_errors]
+                return {
+                    "success": False,
+                    "error": f"Product update errors: {'; '.join(error_messages)}",
+                    "error_code": "PRODUCT_UPDATE_ERROR",
+                }
+
+            # Update variant price if needed
+            if price_update_needed:
+                shopify_product = result.get("data", {}).get("productUpdate", {}).get("product")
+                if shopify_product and shopify_product.get("variants", {}).get("edges"):
+                    variant_id = shopify_product["variants"]["edges"][0]["node"]["id"]
+                    
+                    variant_mutation = """
+                    mutation productVariantUpdate($input: ProductVariantInput!) {
+                        productVariantUpdate(input: $input) {
+                            productVariant {
+                                id
+                                price
+                            }
+                            userErrors {
+                                field
+                                message
+                            }
+                        }
+                    }
+                    """
+                    
+                    variant_variables = {
+                        "input": {
+                            "id": variant_id,
+                            "price": str(update_data["price"])
+                        }
+                    }
+                    
+                    variant_result = await shopify_client.execute_query(variant_mutation, variant_variables)
+                    
+                    if variant_result.get("errors") or variant_result.get("data", {}).get("productVariantUpdate", {}).get("userErrors"):
+                        return {
+                            "success": True,  # Main update succeeded
+                            "warning": "Product updated but price update failed in Shopify",
+                            "error_code": "VARIANT_UPDATE_FAILED",
+                        }
+
+            return {
+                "success": True,
+                "message": "Product successfully updated in Shopify",
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Unexpected error updating Shopify product: {str(e)}",
+                "error_code": "UNEXPECTED_ERROR",
+            }

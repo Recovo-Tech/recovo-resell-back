@@ -47,6 +47,10 @@ class SecondHandProduct(Base):
     original_description = Column(Text, nullable=True)
     original_product_type = Column(String(100), nullable=True)
     original_vendor = Column(String(100), nullable=True)
+    
+    # Shopify taxonomy category fields
+    category_id = Column(String(100), nullable=True)  # Shopify taxonomy category ID
+    category_name = Column(String(200), nullable=True)  # Human-readable category name
 
     seller_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     is_verified = Column(Boolean, default=False)

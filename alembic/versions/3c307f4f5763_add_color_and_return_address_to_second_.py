@@ -30,6 +30,14 @@ def upgrade() -> None:
         "second_hand_products",
         sa.Column("return_address", sa.String(length=255), nullable=True),
     )
+    op.add_column(
+        "second_hand_products",
+        sa.Column("category_id", sa.String(length=100), nullable=True),
+    )
+    op.add_column(
+        "second_hand_products",
+        sa.Column("category_name", sa.String(length=200), nullable=True),
+    )
 
     # ### end Alembic commands ###
 
@@ -40,5 +48,7 @@ def downgrade() -> None:
 
     op.drop_column("second_hand_products", "return_address")
     op.drop_column("second_hand_products", "color")
+    op.drop_column("second_hand_products", "category_name")
+    op.drop_column("second_hand_products", "category_id")
 
     # ### end Alembic commands ###

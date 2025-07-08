@@ -3,21 +3,21 @@ from typing import List
 
 from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
                      status)
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
-from app.dependencies import admin_required, get_current_user
+from app.dependencies import (admin_required, get_current_user,
+                              get_shopify_category_service)
 from app.middleware.tenant_middleware import get_current_tenant
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.schemas.second_hand_product import (ProductSearchFilters,
+from app.schemas.second_hand_product import (CategoryUpdateRequest,
+                                             ProductSearchFilters,
                                              ProductVerificationRequest,
                                              ProductVerificationResponse,
                                              SecondHandProduct,
-                                             SecondHandProductCreate,
-                                             SecondHandProductList,
                                              SecondHandProductUpdate)
-from app.services.file_upload_service import FileUploadService
 from app.services.second_hand_product_service import SecondHandProductService
 from app.services.shopify_service import ShopifyProductVerificationService
 
@@ -88,6 +88,8 @@ async def create_second_hand_product(
     size: str = Form(None),
     color: str = Form(None),
     return_address: str = Form(None),
+    category_id: str = Form(None, description="Shopify taxonomy category ID"),
+    category_name: str = Form(None, description="Human-readable category name"),
     files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     current_tenant: Tenant = Depends(get_current_tenant),
@@ -130,6 +132,8 @@ async def create_second_hand_product(
         "size": size,
         "color": color,
         "return_address": return_address,
+        "category_id": category_id,
+        "category_name": category_name,
     }
 
     result = await service.create_product_with_images_and_auto_publish(
@@ -240,11 +244,9 @@ async def update_product(
     # Convert update_data to dict, excluding None values
     update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
 
-    product = service.update_product(
-        product_id, current_user.id, current_tenant.id, update_dict
-    )
-
-    if not product:
+    # Check if the product exists and belongs to the user
+    existing_product = service.get_product_by_id(product_id, current_tenant.id)
+    if not existing_product or existing_product.seller_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -253,6 +255,78 @@ async def update_product(
                 "error_code": "PRODUCT_NOT_FOUND_OR_NO_PERMISSION",
                 "success": False,
             },
+        )
+
+    # Update the product locally
+    product = service.update_product(
+        product_id, current_user.id, current_tenant.id, update_dict
+    )
+
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "message": "Failed to update product",
+                "error": "Product update failed in database",
+                "error_code": "DATABASE_UPDATE_FAILED",
+                "success": False,
+            },
+        )
+
+    # If the product is published to Shopify, update it there as well
+    shopify_warning = None
+    if product.shopify_product_id and product.is_approved:
+        try:
+            shopify_update_result = await service.update_shopify_product(
+                product_id, current_tenant.id, update_dict
+            )
+            if not shopify_update_result.get("success"):
+                shopify_warning = shopify_update_result.get("error", "Failed to sync changes to Shopify")
+        except Exception as e:
+            shopify_warning = f"Failed to sync changes to Shopify: {str(e)}"
+
+    # Return the updated product with any warnings
+    if shopify_warning:
+        # For warnings, we'll return a 207 Multi-Status with additional info
+        # Convert product to dict for JSON response
+        product_dict = {
+            "id": product.id,
+            "name": product.name,
+            "description": product.description,
+            "price": product.price,
+            "condition": product.condition,
+            "original_sku": product.original_sku,
+            "barcode": product.barcode,
+            "size": product.size,
+            "color": product.color,
+            "return_address": product.return_address,
+            "category_id": product.category_id,
+            "category_name": product.category_name,
+            "seller_id": str(product.seller_id),
+            "is_verified": product.is_verified,
+            "is_approved": product.is_approved,
+            "shopify_product_id": product.shopify_product_id,
+            "created_at": product.created_at.isoformat() if product.created_at else None,
+            "updated_at": product.updated_at.isoformat() if product.updated_at else None,
+            "images": [
+                {
+                    "id": img.id,
+                    "image_url": img.image_url,
+                    "is_primary": img.is_primary,
+                    "created_at": img.created_at.isoformat() if img.created_at else None
+                }
+                for img in product.images
+            ] if product.images else []
+        }
+        
+        return JSONResponse(
+            status_code=207,  # Multi-Status
+            content={
+                "message": "Product updated locally but failed to sync to Shopify",
+                "product": product_dict,
+                "warning": shopify_warning,
+                "success": True,
+            }
         )
 
     return product
@@ -379,6 +453,86 @@ async def approve_product(
                 "message": "Unexpected error during product approval",
                 "error": str(e),
                 "error_code": "APPROVAL_EXCEPTION",
+                "success": False,
+            },
+        )
+
+
+@router.put("/products/{product_id}/category")
+async def update_product_category(
+    product_id: int,
+    category_data: CategoryUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Update the category of a second-hand product"""
+    service = SecondHandProductService(db)
+
+    # Check if user owns the product
+    product = service.get_product_by_id(product_id, current_tenant.id)
+    if not product or product.seller_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "message": "Product not found or permission denied",
+                "error": f"No product found with ID {product_id} or you don't have permission to update it",
+                "error_code": "PRODUCT_NOT_FOUND_OR_NO_PERMISSION",
+                "success": False,
+            },
+        )
+
+    result = await service.update_product_category(
+        product_id, current_tenant.id, category_data.category_id, category_data.category_name
+    )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Failed to update product category",
+                "error": result.get("error", "An unknown error occurred."),
+                "error_code": result.get("error_code", "CATEGORY_UPDATE_FAILED"),
+                "success": False,
+            },
+        )
+
+    # Return warning if Shopify update failed but local update succeeded
+    if result.get("warning"):
+        return {
+            "message": result.get("message", "Category updated with warnings"),
+            "product": result["product"],
+            "warning": result.get("warning"),
+            "success": True,
+        }
+
+    return {
+        "message": result.get("message", "Category updated successfully"),
+        "product": result["product"],
+        "success": True,
+    }
+
+
+@router.get("/categories")
+async def get_available_categories(
+    category_service=Depends(get_shopify_category_service),
+):
+    """Get available Shopify taxonomy categories for product categorization"""
+    try:
+        categories = await category_service.get_categories()
+        
+        return {
+            "categories": categories,
+            "total": len(categories),
+            "message": f"Successfully fetched {len(categories)} categories",
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Failed to fetch categories",
+                "error": str(e),
+                "error_code": "CATEGORIES_FETCH_FAILED",
                 "success": False,
             },
         )
