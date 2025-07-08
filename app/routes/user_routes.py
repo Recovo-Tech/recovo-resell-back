@@ -1,8 +1,9 @@
 # app/routes/user_routes.py
-from fastapi import APIRouter, Depends, HTTPException, status
 from uuid import UUID
 
-from app.dependencies import get_current_user, get_user_service, admin_required
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.dependencies import admin_required, get_current_user, get_user_service
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["Users"])

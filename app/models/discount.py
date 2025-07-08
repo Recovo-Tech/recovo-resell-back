@@ -1,6 +1,6 @@
 # app/models/discount.py
 
-from sqlalchemy import Boolean, Column, Float, Integer, String, ForeignKey
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 

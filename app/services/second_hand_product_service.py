@@ -1,17 +1,16 @@
 # app/services/second_hand_product_service.py
-from typing import List, Optional, Dict, Any
-import uuid
 import asyncio
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+import uuid
+from typing import Any, Dict, List, Optional
 
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
+from app.config.shopify_config import shopify_settings
 from app.models.product import SecondHandProduct, SecondHandProductImage
 from app.models.user import User
-from app.services.shopify_service import (
-    ShopifyProductVerificationService,
-    ShopifyGraphQLClient,
-)
-from app.config.shopify_config import shopify_settings
+from app.services.shopify_service import (ShopifyGraphQLClient,
+                                          ShopifyProductVerificationService)
 
 
 class SecondHandProductService:
@@ -535,7 +534,9 @@ class SecondHandProductService:
                         )
 
                 # Add product to "Second Hand" collection
-                collection_success = await self._add_to_second_hand_collection(client, shopify_product_id)
+                collection_success = await self._add_to_second_hand_collection(
+                    client, shopify_product_id
+                )
                 if collection_success:
                     print("✅ Product added to Second Hand collection")
                 else:
@@ -916,11 +917,11 @@ class SecondHandProductService:
         try:
             # First, find or create the "Second Hand" collection
             collection_id = await self._find_or_create_collection(client, "Second Hand")
-            
+
             if not collection_id:
                 print("Failed to find or create 'Second Hand' collection")
                 return False
-            
+
             # Add product to collection using collectionAddProducts mutation
             add_product_mutation = """
             mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
@@ -939,34 +940,44 @@ class SecondHandProductService:
                 }
             }
             """
-            
-            variables = {
-                "id": collection_id,
-                "productIds": [product_id]
-            }
-            
+
+            variables = {"id": collection_id, "productIds": [product_id]}
+
             print(f"DEBUG: Adding product {product_id} to collection {collection_id}")
             result = await client.execute_query(add_product_mutation, variables)
             print(f"DEBUG: Collection add result: {result}")
-            
+
             # Check for errors
-            if result.get("data", {}).get("collectionAddProducts", {}).get("userErrors"):
+            if (
+                result.get("data", {})
+                .get("collectionAddProducts", {})
+                .get("userErrors")
+            ):
                 errors = result["data"]["collectionAddProducts"]["userErrors"]
                 print(f"Error adding product to collection: {errors}")
                 return False
-            
+
             # Check if the operation was successful
-            collection_data = result.get("data", {}).get("collectionAddProducts", {}).get("collection")
+            collection_data = (
+                result.get("data", {})
+                .get("collectionAddProducts", {})
+                .get("collection")
+            )
             if collection_data:
-                products_count = collection_data.get("productsCount", {}).get("count", "unknown")
-                print(f"✅ Product added to collection '{collection_data.get('title')}' (Products count: {products_count})")
+                products_count = collection_data.get("productsCount", {}).get(
+                    "count", "unknown"
+                )
+                print(
+                    f"✅ Product added to collection '{collection_data.get('title')}' (Products count: {products_count})"
+                )
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             print(f"Error adding product to Second Hand collection: {str(e)}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -989,24 +1000,22 @@ class SecondHandProductService:
                 }
             }
             """
-            
-            search_variables = {
-                "query": f"title:{collection_title}"
-            }
-            
+
+            search_variables = {"query": f"title:{collection_title}"}
+
             print(f"DEBUG: Searching for collection with title '{collection_title}'")
             result = await client.execute_query(find_collection_query, search_variables)
-            
+
             # Check if collection already exists
             collections = result.get("data", {}).get("collections", {}).get("edges", [])
             if collections:
                 collection_id = collections[0]["node"]["id"]
                 print(f"✅ Found existing collection: {collection_id}")
                 return collection_id
-            
+
             # Collection doesn't exist, create it
             print(f"Collection '{collection_title}' not found, creating new one...")
-            
+
             create_collection_mutation = """
             mutation collectionCreate($input: CollectionInput!) {
                 collectionCreate(input: $input) {
@@ -1022,37 +1031,50 @@ class SecondHandProductService:
                 }
             }
             """
-            
+
             create_variables = {
                 "input": {
                     "title": collection_title,
                     "handle": collection_title.lower().replace(" ", "-"),
                     "descriptionHtml": f"<p>Collection for {collection_title.lower()} products sold through our marketplace.</p>",
-                    "published": True
+                    "published": True,
                 }
             }
-            
+
             print(f"DEBUG: Creating collection with variables: {create_variables}")
-            create_result = await client.execute_query(create_collection_mutation, create_variables)
+            create_result = await client.execute_query(
+                create_collection_mutation, create_variables
+            )
             print(f"DEBUG: Collection creation result: {create_result}")
-            
+
             # Check for creation errors
-            if create_result.get("data", {}).get("collectionCreate", {}).get("userErrors"):
+            if (
+                create_result.get("data", {})
+                .get("collectionCreate", {})
+                .get("userErrors")
+            ):
                 errors = create_result["data"]["collectionCreate"]["userErrors"]
                 print(f"Error creating collection: {errors}")
                 return None
-            
+
             # Get the created collection ID
-            created_collection = create_result.get("data", {}).get("collectionCreate", {}).get("collection")
+            created_collection = (
+                create_result.get("data", {})
+                .get("collectionCreate", {})
+                .get("collection")
+            )
             if created_collection:
                 collection_id = created_collection["id"]
-                print(f"✅ Created new collection: {collection_id} - '{created_collection.get('title')}'")
+                print(
+                    f"✅ Created new collection: {collection_id} - '{created_collection.get('title')}'"
+                )
                 return collection_id
-            
+
             return None
-            
+
         except Exception as e:
             print(f"Error finding or creating collection: {str(e)}")
             import traceback
+
             traceback.print_exc()
             return None

@@ -1,30 +1,29 @@
 # app/routes/shopify_category_routes.py
 
 from fastapi import APIRouter, Depends, HTTPException
-from  app.dependencies import get_shopify_category_service
+
+from app.dependencies import get_shopify_category_service
 
 router = APIRouter(prefix="/shopify/categories", tags=["Shopify Categories"])
+
 
 @router.get(
     "",
     summary="Get all categories",
     description="Fetch all categories/collections from the tenant's Shopify store",
 )
-async def get_categories(
-    service = Depends(get_shopify_category_service)
-):
+async def get_categories(service=Depends(get_shopify_category_service)):
     """Get all categories/collections from Shopify"""
     try:
         categories = await service.get_categories()
         return {
             "categories": categories,
             "total": len(categories),
-            "message": f"Successfully fetched {len(categories)} categories"
+            "message": f"Successfully fetched {len(categories)} categories",
         }
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"error.failed_to_fetch_categories: {str(e)}"
+            status_code=500, detail=f"error.failed_to_fetch_categories: {str(e)}"
         )
 
 
@@ -34,8 +33,7 @@ async def get_categories(
     description="Fetch a specific category/collection by its ID with sample products",
 )
 async def get_category_by_id(
-    category_id: str,
-    service = Depends(get_shopify_category_service)
+    category_id: str, service=Depends(get_shopify_category_service)
 ):
     """Get a specific category by its ID"""
     try:
@@ -43,19 +41,15 @@ async def get_category_by_id(
         if not category:
             raise HTTPException(
                 status_code=404,
-                detail=f"error.category_with_ID_{category_id}_not_found"
+                detail=f"error.category_with_ID_{category_id}_not_found",
             )
-        
-        return {
-            "category": category,
-            "message": "Category fetched successfully"
-        }
+
+        return {"category": category, "message": "Category fetched successfully"}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"error.failed_to_fetch_category: {str(e)}"
+            status_code=500, detail=f"error.failed_to_fetch_category: {str(e)}"
         )
 
 
@@ -64,10 +58,7 @@ async def get_category_by_id(
     summary="Search categories",
     description="Search categories by name or description",
 )
-async def search_categories(
-    query: str,
-    service = Depends(get_shopify_category_service)
-):
+async def search_categories(query: str, service=Depends(get_shopify_category_service)):
     """Search categories by name or description"""
     try:
         categories = await service.search_categories(query)
@@ -75,10 +66,9 @@ async def search_categories(
             "categories": categories,
             "total": len(categories),
             "query": query,
-            "message": f"Found {len(categories)} categories matching '{query}'"
+            "message": f"Found {len(categories)} categories matching '{query}'",
         }
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"error.failed_to_search_categories: {str(e)}"
+            status_code=500, detail=f"error.failed_to_search_categories: {str(e)}"
         )

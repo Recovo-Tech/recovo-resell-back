@@ -1,7 +1,8 @@
+from typing import Optional
+from uuid import UUID
+
 import bcrypt
 from fastapi import HTTPException
-from uuid import UUID
-from typing import Optional
 
 from app.models.user import User
 from app.repositories import UserRepository

@@ -2,15 +2,15 @@
 Script to verify if images were successfully uploaded to Shopify
 """
 
+import asyncio
 import os
 import sys
-import asyncio
 
 # Add the app directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.shopify_service import ShopifyGraphQLClient
 from app.config.db_config import SessionLocal
+from app.services.shopify_service import ShopifyGraphQLClient
 
 
 async def verify_shopify_images():

@@ -1,8 +1,9 @@
 # app/schemas/second_hand_product.py
+import uuid
 from datetime import datetime
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
-import uuid
 
 
 class SecondHandProductImageBase(BaseModel):

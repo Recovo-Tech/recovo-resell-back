@@ -1,12 +1,14 @@
 # app/middleware/tenant_middleware.py
 
 import os
+
 import jwt
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
+
 from app.config.db_config import get_db
-from app.services.tenant_service import TenantService
 from app.models.tenant import Tenant
+from app.services.tenant_service import TenantService
 
 
 class TenantContext:

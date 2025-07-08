@@ -2,8 +2,10 @@
 """
 Simple HTTP test for automatic publishing - minimal version
 """
-import requests
 import json
+
+import requests
+
 
 def simple_test():
     try:
@@ -15,7 +17,7 @@ def simple_test():
         else:
             print(f"❌ Server returned status: {response.status_code}")
             return
-            
+
         # Test a simple GET endpoint that doesn't require auth
         print("🔍 Testing public endpoint...")
         try:
@@ -27,7 +29,7 @@ def simple_test():
                 print("ℹ️ This is expected (authentication required)")
         except Exception as e:
             print(f"Error testing public endpoint: {e}")
-            
+
         print("\n🚨 ISSUE IDENTIFIED:")
         print("The automatic publishing logic is correct in the service layer,")
         print("but to test the HTTP route we need proper authentication.")
@@ -35,15 +37,16 @@ def simple_test():
         print("1. The route is not being called with the right conditions")
         print("2. There might be an exception being swallowed")
         print("3. The debug prints aren't appearing in the server logs")
-        
+
         print("\n📝 RECOMMENDATION:")
         print("Check the server terminal logs when creating a product")
         print("to see if the debug messages appear:")
         print("- 'DEBUG: Product X is verified, attempting automatic approval...'")
         print("- 'DEBUG: Product X automatically approved and published to Shopify'")
-        
+
     except Exception as e:
         print(f"Test failed: {e}")
+
 
 if __name__ == "__main__":
     simple_test()

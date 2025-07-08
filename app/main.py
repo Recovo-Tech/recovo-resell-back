@@ -1,24 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import (
-    auth_routes,
-    cart_routes,
-    discount_routes,
-    product_routes,
-    user_routes,
-    second_hand_routes,
-    shopify_webhook_routes,
-    tenant_routes,
-    shopify_category_routes,
-    shopify_product_routes,
-)
+
 from app.middleware.tenant_middleware import tenant_middleware
+from app.routes import (auth_routes, cart_routes, discount_routes,
+                        product_routes, second_hand_routes,
+                        shopify_category_routes, shopify_product_routes,
+                        shopify_webhook_routes, tenant_routes, user_routes)
 
 app = FastAPI(title="Recovo Online Store API")
 
 app.middleware("http")(tenant_middleware)
 
-origins = ['*']
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

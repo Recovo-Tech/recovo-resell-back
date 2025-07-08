@@ -2,17 +2,17 @@
 Script to add images to a second-hand product and test Shopify image upload
 """
 
+import asyncio
 import os
 import sys
-import asyncio
 import uuid
 
 # Add the app directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.second_hand_product_service import SecondHandProductService
 from app.config.db_config import SessionLocal
 from app.models.product import SecondHandProduct, SecondHandProductImage
+from app.services.second_hand_product_service import SecondHandProductService
 
 
 async def test_images_upload():

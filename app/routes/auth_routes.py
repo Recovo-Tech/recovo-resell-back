@@ -3,13 +3,15 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.services import AuthService, TenantService
 
 from app.config.db_config import get_db
+from app.dependencies import (get_auth_service, get_tenant_service,
+                              get_user_service)
 from app.models.tenant import Tenant
-from app.dependencies import get_auth_service, get_user_service, get_tenant_service
-from app.schemas.auth import LoginRequest, RegisterResponse, Token, LoginResponse
+from app.schemas.auth import (LoginRequest, LoginResponse, RegisterResponse,
+                              Token)
 from app.schemas.user import UserCreate
+from app.services import AuthService, TenantService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -53,10 +55,11 @@ def register_user(
     }
 
 
-@router.post("/login", 
-    summary="User Login", 
+@router.post(
+    "/login",
+    summary="User Login",
     description="Login with username, password and tenant name. Returns user info and Bearer token.",
-    response_model=LoginResponse
+    response_model=LoginResponse,
 )
 async def login(
     request: LoginRequest,
@@ -78,7 +81,9 @@ async def login(
             request.username, request.password, tenant.id
         )
         if not user:
-            raise HTTPException(status_code=401, detail="error.invalid_username_or_password")
+            raise HTTPException(
+                status_code=401, detail="error.invalid_username_or_password"
+            )
 
         # Create JWT token with tenant context
 

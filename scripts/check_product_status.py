@@ -4,6 +4,7 @@ Script to check second-hand products and their Shopify publishing status
 
 import os
 import sys
+
 import psycopg2
 
 # Database connection parameters

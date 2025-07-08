@@ -13,7 +13,7 @@ class LoginRequest(BaseModel):
             "example": {
                 "username": "nachoooo",
                 "password": "Recovo!",
-                "tenant_name": "Default Tenant"
+                "tenant_name": "Default Tenant",
             }
         }
 

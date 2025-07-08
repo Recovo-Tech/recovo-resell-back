@@ -1,6 +1,7 @@
+from uuid import UUID
+
 from app.models.tenant import Tenant
 from app.repositories.base import BaseRepository
-from uuid import UUID
 
 
 class TenantRepository(BaseRepository):
