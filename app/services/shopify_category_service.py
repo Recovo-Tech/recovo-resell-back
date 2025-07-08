@@ -34,12 +34,6 @@ class ShopifyCategoryService:
                             "name": category["name"],
                             "full_name": category["full_name"],
                             "type": "taxonomy_category",
-                            "level": category["level"],
-                            "is_leaf": category["is_leaf"],
-                            "is_root": category["is_root"],
-                            "parent_id": category["parent_id"],
-                            "children_ids": category["children_ids"],
-                            "attributes": category["attributes"],
                             "tenant_id": str(self.tenant.id),
                         }
                     )
@@ -187,4 +181,93 @@ class ShopifyCategoryService:
 
         except Exception as e:
             print(f"Error searching categories: {e}")
+            raise
+
+    async def get_subcategories(self, parent_category_id: str) -> List[Dict[str, Any]]:
+        """Get subcategories for a specific parent category"""
+        try:
+            # First try to get from taxonomy if the parent is a taxonomy category
+            if parent_category_id.startswith("gid://shopify/TaxonomyCategory/"):
+                result = await self.client.get_subcategories(parent_category_id)
+                subcategories = []
+
+                for subcategory in result.get("subcategories", []):
+                    subcategories.append(
+                        {
+                            "id": subcategory["id"],
+                            "name": subcategory["name"],
+                            "full_name": subcategory["full_name"],
+                            "type": "taxonomy_category",
+                            "parent_id": subcategory["parent_id"],
+                            "level": subcategory["level"],
+                            "is_leaf": subcategory["is_leaf"],
+                            "children_count": subcategory["children_count"],
+                            "tenant_id": str(self.tenant.id),
+                        }
+                    )
+
+                return subcategories
+            else:
+                # For non-taxonomy categories (product types, vendors, tags), return empty
+                # as they typically don't have hierarchical subcategories
+                return []
+
+        except Exception as e:
+            print(f"Error fetching subcategories for {parent_category_id}: {e}")
+            raise
+
+    async def get_category_tree(self, category_id: str, max_depth: int = 3) -> Dict[str, Any]:
+        """Get full category tree starting from a specific category"""
+        try:
+            if category_id.startswith("gid://shopify/TaxonomyCategory/"):
+                result = await self.client.get_category_tree(category_id, max_depth)
+
+                if not result.get("category"):
+                    return {"category": None, "children": []}
+
+                # Add tenant_id to the category and all children recursively
+                def add_tenant_id(category_tree):
+                    if category_tree.get("category"):
+                        category_tree["category"]["tenant_id"] = str(self.tenant.id)
+
+                    for child in category_tree.get("children", []):
+                        add_tenant_id(child)
+
+                    return category_tree
+
+                return add_tenant_id(result)
+            else:
+                # For non-taxonomy categories, just return the category without children
+                all_categories = await self.get_categories()
+                category = next((cat for cat in all_categories if cat["id"] == category_id), None)
+
+                if category:
+                    return {"category": category, "children": []}
+                else:
+                    return {"category": None, "children": []}
+
+        except Exception as e:
+            print(f"Error fetching category tree for {category_id}: {e}")
+            raise
+
+    async def get_top_level_categories(self) -> List[Dict[str, Any]]:
+        """Get only top-level categories (categories with no parent)"""
+        try:
+            all_categories = await self.get_categories()
+
+            # Filter for top-level categories
+            top_level = []
+            for category in all_categories:
+                # Taxonomy categories with no parent_id or level 0 are top-level
+                if category.get("type") == "taxonomy_category":
+                    if not category.get("parent_id") or category.get("level", 0) == 0:
+                        top_level.append(category)
+                else:
+                    # For non-taxonomy categories (product types, vendors, tags), they're all top-level
+                    top_level.append(category)
+
+            return top_level
+
+        except Exception as e:
+            print(f"Error fetching top-level categories: {e}")
             raise

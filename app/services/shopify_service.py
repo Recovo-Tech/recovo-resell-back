@@ -676,21 +676,26 @@ class ShopifyGraphQLClient:
     async def get_taxonomy(self) -> Dict[str, Any]:
         """Get Shopify's official product taxonomy/categories"""
         query = """
-                    query GetAllCategories {
+        query GetAllCategories {
             taxonomy {
                 categories(first: 250) {
-                nodes {
-                    id
-                    name
-                }
+                    nodes {
+                        id
+                        name
+                        fullName
+                        parentId
+                        level
+                        isLeaf
+                        childrenIds
+                    }
                 }
             }
-            }
+        }
         """
 
         try:
-            response = await self.execute_query(query, {"first": 250})
-
+            response = await self.execute_query(query)  # No variables needed
+            
             if "errors" in response:
                 print(f"GraphQL errors: {response['errors']}")
                 # Fallback to product sampling if taxonomy is not available
@@ -698,28 +703,26 @@ class ShopifyGraphQLClient:
 
             taxonomy_data = response.get("data", {}).get("taxonomy", {})
             categories_connection = taxonomy_data.get("categories", {})
-            categories_edges = categories_connection.get("edges", [])
+            categories_nodes = categories_connection.get("nodes", [])  # Changed from edges to nodes
 
             # Process taxonomy categories
             categories = []
-            for edge in categories_edges:
-                category = edge["node"]
+            for category in categories_nodes:  # Direct iteration over nodes
+                categories.append({
+                    "id": category.get("id"),
+                    "name": category.get("name"),
+                    "full_name": category.get("fullName", category.get("name")),  # Use fullName if available
+                    "type": "taxonomy_category",
+                    "parent_id": category.get("parentId"),
+                    "level": category.get("level", 0),
+                    "is_leaf": category.get("isLeaf", False),
+                    "children_ids": category.get("childrenIds", []),
+                })
 
-                categories.append(
-                    {
-                        "id": category.get("id"),
-                        "name": category.get("name"),
-                        "full_name": category.get("fullName"),
-                        "parent_id": category.get("parentId"),
-                        "level": category.get("level"),
-                        "is_leaf": category.get("isLeaf"),
-                        "is_root": category.get("isRoot"),
-                        "children_ids": category.get("childrenIds", []),
-                        "attributes": [],  # Remove attributes to avoid union type issues
-                    }
-                )
-
-            return {"categories": categories, "total": len(categories)}
+            return {
+                "categories": categories,
+                "total": len(categories)
+            }
 
         except Exception as e:
             print(f"Error fetching taxonomy: {e}")
@@ -727,6 +730,105 @@ class ShopifyGraphQLClient:
             print("Falling back to product sampling for categories...")
             return await self.get_product_filters()
 
+    async def get_subcategories(self, parent_category_id: str) -> Dict[str, Any]:
+        """Get subcategories for a specific parent category using the childrenOf argument"""
+        query = """
+        query GetChildCategories($parentId: ID!) {
+            taxonomy {
+                categories(first: 250, childrenOf: $parentId) {
+                    nodes {
+                        id
+                        name
+                        fullName
+                        parentId
+                        level
+                        isLeaf
+                        childrenIds
+                    }
+                }
+            }
+        }
+        """
+        
+        try:
+            variables = {"parentId": parent_category_id}
+            response = await self.execute_query(query, variables)
+            
+            if "errors" in response:
+                print(f"GraphQL errors fetching subcategories: {response['errors']}")
+                return {"subcategories": [], "total": 0}
+
+            taxonomy_data = response.get("data", {}).get("taxonomy", {})
+            categories_connection = taxonomy_data.get("categories", {})
+            categories_nodes = categories_connection.get("nodes", [])
+
+            # Process subcategories
+            subcategories = []
+            for category in categories_nodes:
+                subcategories.append({
+                    "id": category.get("id"),
+                    "name": category.get("name"),
+                    "full_name": category.get("fullName", category.get("name")),
+                    "type": "taxonomy_category",
+                    "parent_id": category.get("parentId"),
+                    "level": category.get("level", 0),
+                    "is_leaf": category.get("isLeaf", False),
+                    "children_ids": category.get("childrenIds", []),
+                })
+
+            return {
+                "subcategories": subcategories,
+                "total": len(subcategories),
+                "parent_id": parent_category_id
+            }
+
+        except Exception as e:
+            print(f"Error fetching subcategories for parent {parent_category_id}: {e}")
+            return {"subcategories": [], "total": 0, "parent_id": parent_category_id}
+
+    async def get_category_tree(self, category_id: str, max_depth: int = 3) -> Dict[str, Any]:
+        """Get full category tree starting from a specific category"""
+        try:
+            # First get the target category by getting all categories and filtering
+            # This is because Shopify's taxonomy API doesn't seem to support individual category lookup
+            all_categories_result = await self.get_taxonomy()
+            all_categories = all_categories_result.get("categories", [])
+            
+            # Find the requested category
+            target_category = None
+            for category in all_categories:
+                if category.get("id") == category_id:
+                    target_category = category
+                    break
+            
+            if not target_category:
+                return {"category": None, "children": []}
+
+            # Build category tree recursively using the childrenOf query
+            async def build_tree(category, current_depth=0):
+                if current_depth >= max_depth or category.get("is_leaf", False):
+                    return {"category": category, "children": []}
+                
+                # Get children using the proper childrenOf query
+                children_result = await self.get_subcategories(category.get("id"))
+                children = children_result.get("subcategories", [])
+                
+                # Recursively build subtrees for children
+                child_trees = []
+                for child in children:
+                    child_tree = await build_tree(child, current_depth + 1)
+                    child_trees.append(child_tree)
+                
+                return {
+                    "category": category,
+                    "children": child_trees
+                }
+
+            return await build_tree(target_category)
+
+        except Exception as e:
+            print(f"Error fetching category tree for {category_id}: {e}")
+            return {"category": None, "children": []}
 
 class ShopifyProductVerificationService:
     """Service for verifying products against Shopify store inventory"""
