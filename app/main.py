@@ -21,15 +21,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_routes.router)
 app.include_router(user_routes.router)
 app.include_router(product_routes.router)
 app.include_router(cart_routes.router)
-app.include_router(auth_routes.router)
 app.include_router(discount_routes.router)
 app.include_router(second_hand_routes.router)
-app.include_router(shopify_webhook_routes.router)
+
 app.include_router(tenant_routes.router)
 app.include_router(shopify_category_routes.router)
-
 app.include_router(shopify_collection_routes.router)
 app.include_router(shopify_product_routes.router)
+app.include_router(shopify_webhook_routes.router)
