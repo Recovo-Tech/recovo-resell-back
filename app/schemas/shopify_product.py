@@ -80,6 +80,8 @@ class ProductPagination(BaseModel):
 
     page: int
     limit: int
+    total_count: Optional[int] = None  # Total number of products matching filters
+    total_pages: Optional[int] = None  # Total number of pages
     has_next_page: bool
     has_previous_page: bool
     next_cursor: Optional[str] = None

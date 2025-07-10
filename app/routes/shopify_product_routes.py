@@ -29,6 +29,7 @@ async def list_products(
     status: Optional[str] = Query("ACTIVE", description="Filter by product status"),
     search: Optional[str] = Query(None, description="Search query"),
     after_cursor: Optional[str] = Query(None, description="Cursor for pagination"),
+    include_count: bool = Query(True, description="Include total count (may be slower for large stores)"),
     current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
@@ -42,7 +43,22 @@ async def list_products(
     - Status (ACTIVE, ARCHIVED, DRAFT)
     - Search query
 
-    Uses cursor-based pagination for optimal performance.
+    **Pagination Information:**
+    - Uses cursor-based pagination for optimal performance
+    - Returns total_count and total_pages when include_count=true
+    - For large stores, set include_count=false for faster responses
+
+    **Frontend Pagination Example:**
+    ```javascript
+    // Traditional pagination with page numbers
+    const response = await fetch('/shopify/products?page=1&limit=20&include_count=true');
+    const data = await response.json();
+    console.log(`Page ${data.pagination.page} of ${data.pagination.total_pages}`);
+    console.log(`${data.products.length} of ${data.pagination.total_count} products`);
+
+    // Cursor-based pagination for performance
+    const nextPage = await fetch(`/shopify/products?after_cursor=${data.pagination.next_cursor}&include_count=false`);
+    ```
     """
 
     # Check if tenant has Shopify configuration
@@ -64,7 +80,32 @@ async def list_products(
             status=status,
             search=search,
             after_cursor=after_cursor,
+            include_count=include_count,
         )
+
+        # If collection_id is provided, ensure we only return products that belong to that specific collection
+        # This is a backup filter in case Shopify's GraphQL collection_id filter doesn't work properly
+        if collection_id:
+            original_count = len(result.get('products', []))
+            
+            # Clean the collection ID for comparison
+            clean_collection_id = collection_id.replace("gid://shopify/Collection/", "")
+            
+            filtered_products = []
+            for product in result.get('products', []):
+                product_collections = product.get('collections', [])
+                # Check if the product belongs to the requested collection
+                for collection in product_collections:
+                    if (collection.get('id') == clean_collection_id or 
+                        collection.get('id') == collection_id or
+                        collection.get('shopify_id') == collection_id):
+                        filtered_products.append(product)
+                        break  # Found the collection, no need to check others
+            
+            result['products'] = filtered_products
+            
+            # Log the filtering for debugging
+            print(f"Collection filter for '{collection_id}': {original_count} products -> {len(filtered_products)} products in collection")
 
         return ProductListResponse(**result)
 
@@ -139,6 +180,7 @@ async def get_available_filters(
 @router.post("/search", response_model=ProductListResponse)
 async def search_products(
     search_request: ProductSearchRequest,
+    include_count: bool = Query(True, description="Include total count (may be slower for large stores)"),
     current_tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
@@ -176,6 +218,7 @@ async def search_products(
             filters=filters,
             page=search_request.page,
             limit=search_request.limit,
+            include_count=include_count,
         )
 
         return ProductListResponse(**result)

@@ -28,6 +28,7 @@ class ShopifyProductService:
         status: str = "ACTIVE",
         search: str = None,
         after_cursor: str = None,
+        include_count: bool = True,
     ) -> Dict[str, Any]:
         """
         Get paginated products with filtering
@@ -41,6 +42,7 @@ class ShopifyProductService:
             status: Filter by product status
             search: Search query
             after_cursor: Cursor for pagination (overrides page)
+            include_count: Whether to include total count (slower for large stores)
         """
         try:
             # If no cursor provided, we use page-based approach
@@ -48,6 +50,7 @@ class ShopifyProductService:
             # so this is an approximation for the first few pages
             cursor = after_cursor
 
+            # Get products
             result = await self.client.get_products_paginated(
                 first=min(limit, 250),
                 after=cursor,
@@ -58,11 +61,34 @@ class ShopifyProductService:
                 query=search,
             )
 
+            # Get total count for pagination (this may take a moment for large stores)
+            total_count = None
+            total_pages = None
+            
+            if include_count:
+                try:
+                    total_count = await self.client.get_products_count(
+                        collection_id=collection_id,
+                        product_type=product_type,
+                        vendor=vendor,
+                        status=status,
+                        query=search,
+                    )
+                    
+                    if total_count > 0 and limit > 0:
+                        total_pages = (total_count + limit - 1) // limit  # Ceiling division
+                        
+                except Exception as count_error:
+                    print(f"Error getting product count: {count_error}")
+                    # Continue without count information
+
             return {
                 "products": result["products"],
                 "pagination": {
                     "page": page,
                     "limit": limit,
+                    "total_count": total_count,
+                    "total_pages": total_pages,
                     "has_next_page": result["page_info"]["has_next_page"],
                     "has_previous_page": result["page_info"]["has_previous_page"],
                     "next_cursor": result["page_info"]["end_cursor"],
@@ -281,7 +307,7 @@ class ShopifyProductService:
             raise
 
     async def search_products(
-        self, query: str, filters: Dict[str, Any] = None, page: int = 1, limit: int = 50
+        self, query: str, filters: Dict[str, Any] = None, page: int = 1, limit: int = 50, include_count: bool = True
     ) -> Dict[str, Any]:
         """
         Search products with advanced filtering
@@ -291,6 +317,7 @@ class ShopifyProductService:
             filters: Additional filters (collection_id, product_type, vendor, etc.)
             page: Page number
             limit: Results per page
+            include_count: Whether to include total count
         """
         filters = filters or {}
 
@@ -302,4 +329,5 @@ class ShopifyProductService:
             vendor=filters.get("vendor"),
             status=filters.get("status", "ACTIVE"),
             search=query,
+            include_count=include_count,
         )
