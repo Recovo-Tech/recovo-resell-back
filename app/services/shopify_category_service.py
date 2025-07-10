@@ -21,54 +21,60 @@ class ShopifyCategoryService:
     async def get_categories(self) -> List[Dict[str, Any]]:
         """Get all product categories from Shopify taxonomy"""
         try:
+            print("Fetching categories from Shopify...")
             # Try to get official Shopify taxonomy first
             taxonomy_data = await self.client.get_taxonomy()
+            print(f"Taxonomy data received: {taxonomy_data}")
 
             # If we got official taxonomy categories
             if "categories" in taxonomy_data:
+                print(f"Found {len(taxonomy_data['categories'])} taxonomy categories")
                 categories = []
                 for category in taxonomy_data["categories"]:
-                    categories.append(
-                        {
-                            "id": category["id"],
-                            "name": category["name"],
-                            "full_name": category["full_name"],
-                            "type": "taxonomy_category",
-                            "tenant_id": str(self.tenant.id),
-                        }
-                    )
+                    category_data = {
+                        "id": category["id"],
+                        "name": category["name"],
+                        "full_name": category["full_name"],
+                        "type": "taxonomy_category",
+                        "tenant_id": str(self.tenant.id),
+                    }
+                    categories.append(category_data)
+                    print(f"Added taxonomy category: {category_data}")
                 return categories
 
+            print("No taxonomy categories found, falling back to product filters...")
             # Fallback to product filters if taxonomy is not available
             filters = await self.client.get_product_filters()
+            print(f"Product filters: {filters}")
             categories = []
 
             # Add product types as categories
             for product_type in filters.get("product_types", []):
                 if product_type and product_type.strip():
-                    categories.append(
-                        {
-                            "id": f"product_type_{product_type.lower().replace(' ', '_')}",
-                            "name": product_type,
-                            "type": "product_type",
-                            "slug": product_type.lower().replace(" ", "-"),
-                            "tenant_id": str(self.tenant.id),
-                        }
-                    )
+                    category_data = {
+                        "id": f"product_type_{product_type.lower().replace(' ', '_')}",
+                        "name": product_type,
+                        "type": "product_type",
+                        "slug": product_type.lower().replace(" ", "-"),
+                        "tenant_id": str(self.tenant.id),
+                    }
+                    categories.append(category_data)
+                    print(f"Added product type category: {category_data}")
 
             # Add vendors as categories
             for vendor in filters.get("vendors", []):
                 if vendor and vendor.strip():
-                    categories.append(
-                        {
-                            "id": f"vendor_{vendor.lower().replace(' ', '_')}",
-                            "name": vendor,
-                            "type": "vendor",
-                            "slug": vendor.lower().replace(" ", "-"),
-                            "tenant_id": str(self.tenant.id),
-                        }
-                    )
+                    category_data = {
+                        "id": f"vendor_{vendor.lower().replace(' ', '_')}",
+                        "name": vendor,
+                        "type": "vendor",
+                        "slug": vendor.lower().replace(" ", "-"),
+                        "tenant_id": str(self.tenant.id),
+                    }
+                    categories.append(category_data)
+                    print(f"Added vendor category: {category_data}")
 
+            print(f"Returning {len(categories)} categories total")
             return categories
 
         except Exception as e:
@@ -186,34 +192,41 @@ class ShopifyCategoryService:
     async def get_subcategories(self, parent_category_id: str) -> List[Dict[str, Any]]:
         """Get subcategories for a specific parent category"""
         try:
+            print(f"Getting subcategories for parent: {parent_category_id}")
+            
             # First try to get from taxonomy if the parent is a taxonomy category
             if parent_category_id.startswith("gid://shopify/TaxonomyCategory/"):
+                print(f"Querying Shopify for subcategories of taxonomy category: {parent_category_id}")
                 result = await self.client.get_subcategories(parent_category_id)
+                print(f"Shopify subcategories result: {result}")
+                
                 subcategories = []
-
                 for subcategory in result.get("subcategories", []):
-                    subcategories.append(
-                        {
-                            "id": subcategory["id"],
-                            "name": subcategory["name"],
-                            "full_name": subcategory["full_name"],
-                            "type": "taxonomy_category",
-                            "parent_id": subcategory["parent_id"],
-                            "level": subcategory["level"],
-                            "is_leaf": subcategory["is_leaf"],
-                            "children_count": subcategory["children_count"],
-                            "tenant_id": str(self.tenant.id),
-                        }
-                    )
+                    subcategory_data = {
+                        "id": subcategory["id"],
+                        "name": subcategory["name"],
+                        "full_name": subcategory["full_name"],
+                        "type": "taxonomy_category",
+                        "parent_id": subcategory["parent_id"],
+                        "level": subcategory["level"],
+                        "is_leaf": subcategory["is_leaf"],
+                        "children_ids": subcategory.get("children_ids", []),
+                        "tenant_id": str(self.tenant.id),
+                    }
+                    subcategories.append(subcategory_data)
 
+                print(f"Processed {len(subcategories)} subcategories")
                 return subcategories
             else:
+                print(f"Non-taxonomy category ID: {parent_category_id}, returning empty subcategories")
                 # For non-taxonomy categories (product types, vendors, tags), return empty
                 # as they typically don't have hierarchical subcategories
                 return []
 
         except Exception as e:
             print(f"Error fetching subcategories for {parent_category_id}: {e}")
+            print(f"Error type: {type(e)}")
+            print(f"Error details: {str(e)}")
             raise
 
     async def get_category_tree(self, category_id: str, max_depth: int = 3) -> Dict[str, Any]:

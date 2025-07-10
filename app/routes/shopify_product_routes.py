@@ -13,6 +13,7 @@ from app.schemas.shopify_product import (AvailableFilters,
                                          ProductListResponse,
                                          ProductSearchRequest, ShopifyProduct)
 from app.services.shopify_product_service import ShopifyProductService
+from app.exceptions import standardize_shopify_error
 
 router = APIRouter(prefix="/shopify/products", tags=["Shopify Products"])
 
@@ -117,12 +118,9 @@ async def list_products(
 
         return ProductListResponse(**result)
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"error.fetching_products: {str(e)}"
-        )
+        # Use standardized error handling
+        raise standardize_shopify_error(e)
 
 
 @router.get("/{product_id}", response_model=ShopifyProduct)
@@ -150,10 +148,9 @@ async def get_product(
 
         return ShopifyProduct(**product)
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"error.fetching_product: {str(e)}")
+        # Use standardized error handling
+        raise standardize_shopify_error(e)
 
 
 @router.get("/filters/available", response_model=AvailableFilters)
@@ -177,12 +174,12 @@ async def get_available_filters(
 
         return AvailableFilters(**filters)
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"error.Error fetching filters: {str(e)}"
-        )
+        # Use standardized error handling
+        raise standardize_shopify_error(e)
+    except Exception as e:
+        # Use standardized error handling
+        raise standardize_shopify_error(e)
 
 
 @router.post("/search", response_model=ProductListResponse)
@@ -231,9 +228,6 @@ async def search_products(
 
         return ProductListResponse(**result)
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"error.Error searching products: {str(e)}"
-        )
+        # Use standardized error handling
+        raise standardize_shopify_error(e)

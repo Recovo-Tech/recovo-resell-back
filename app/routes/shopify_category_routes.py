@@ -94,6 +94,46 @@ async def get_tags(
 
 
 @router.get(
+    "/top-level",
+    summary="Get top-level categories",
+    description="Get only top-level categories (categories with no parent)",
+)
+async def get_top_level_categories(service=Depends(get_shopify_category_service)):
+    """Get only top-level categories"""
+    try:
+        categories = await service.get_top_level_categories()
+        return {
+            "categories": categories,
+            "total": len(categories),
+            "message": f"Successfully fetched {len(categories)} top-level categories",
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"error.failed_to_fetch_top_level_categories: {str(e)}"
+        )
+
+
+@router.get(
+    "/debug/taxonomy",
+    summary="Debug taxonomy data",
+    description="Get raw taxonomy data for debugging",
+)
+async def debug_taxonomy(service=Depends(get_shopify_category_service)):
+    """Debug endpoint to see raw taxonomy data"""
+    try:
+        # Get raw taxonomy data from the client
+        taxonomy_data = await service.client.get_taxonomy()
+        return {
+            "raw_taxonomy": taxonomy_data,
+            "message": "Raw taxonomy data retrieved successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"error.failed_to_fetch_debug_taxonomy: {str(e)}"
+        )
+
+
+@router.get(
     "/search/{query}",
     summary="Search categories",
     description="Search categories by name",
@@ -115,7 +155,7 @@ async def search_categories(query: str, service=Depends(get_shopify_category_ser
 
 
 @router.get(
-    "/{category_id}/subcategories",
+    "get/{category_id}/subcategories",
     summary="Get subcategories",
     description="Get subcategories for a specific parent category",
 )
@@ -123,8 +163,15 @@ async def get_subcategories(
     category_id: str, service=Depends(get_shopify_category_service)
 ):
     """Get subcategories for a specific parent category"""
+    print(f"=== SUBCATEGORIES ENDPOINT CALLED ===")
+    print(f"Raw category_id parameter: {repr(category_id)}")
+    print(f"Category ID type: {type(category_id)}")
+    print(f"Category ID length: {len(category_id)}")
+    
     try:
+        print(f"Subcategories endpoint called with category_id: {category_id}")
         subcategories = await service.get_subcategories(category_id)
+        print(f"Service returned {len(subcategories)} subcategories")
         return {
             "subcategories": subcategories,
             "total": len(subcategories),
@@ -132,6 +179,10 @@ async def get_subcategories(
             "message": f"Found {len(subcategories)} subcategories for category {category_id}",
         }
     except Exception as e:
+        print(f"Error in subcategories endpoint: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500, detail=f"error.failed_to_fetch_subcategories: {str(e)}"
         )
@@ -168,21 +219,3 @@ async def get_category_tree(
         )
 
 
-@router.get(
-    "/top-level",
-    summary="Get top-level categories",
-    description="Get only top-level categories (categories with no parent)",
-)
-async def get_top_level_categories(service=Depends(get_shopify_category_service)):
-    """Get only top-level categories"""
-    try:
-        categories = await service.get_top_level_categories()
-        return {
-            "categories": categories,
-            "total": len(categories),
-            "message": f"Successfully fetched {len(categories)} top-level categories",
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"error.failed_to_fetch_top_level_categories: {str(e)}"
-        )

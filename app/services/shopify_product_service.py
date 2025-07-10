@@ -4,12 +4,14 @@ from typing import Any, Dict, List, Optional
 
 from app.models.tenant import Tenant
 from app.services.shopify_service import ShopifyGraphQLClient
+from app.services.cache_service import ShopifyCacheService, create_cache_service, CacheConfig
+from app.services.shopify_data_transformer import ShopifyDataTransformer
 
 
 class ShopifyProductService:
     """Service for managing Shopify products listing and filtering"""
 
-    def __init__(self, tenant: Tenant):
+    def __init__(self, tenant: Tenant, cache_service: Optional[ShopifyCacheService] = None):
         if not tenant.shopify_app_url or not tenant.shopify_access_token:
             raise ValueError("Tenant must have Shopify credentials configured")
 
@@ -17,6 +19,12 @@ class ShopifyProductService:
             tenant.shopify_app_url, tenant.shopify_access_token
         )
         self.tenant = tenant
+        
+        # Initialize cache service
+        self.cache = cache_service or create_cache_service("memory")
+        
+        # Initialize data transformer
+        self.transformer = ShopifyDataTransformer()
 
     async def get_products(
         self,
