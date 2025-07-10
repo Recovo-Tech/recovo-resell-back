@@ -71,6 +71,14 @@ async def list_products(
     try:
         service = ShopifyProductService(current_tenant)
 
+        # Basic validation: if page is clearly invalid, return early
+        if page < 1:
+            raise HTTPException(status_code=400, detail="Page number must be >= 1")
+        
+        # If include_count is true and requesting a very high page, suggest using cursors
+        if page > 10 and include_count:
+            print(f"Warning: Requesting page {page} with count. Consider using cursor-based pagination for better performance.")
+
         result = await service.get_products(
             page=page,
             limit=limit,

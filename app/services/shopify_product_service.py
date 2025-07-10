@@ -50,18 +50,7 @@ class ShopifyProductService:
             # so this is an approximation for the first few pages
             cursor = after_cursor
 
-            # Get products
-            result = await self.client.get_products_paginated(
-                first=min(limit, 250),
-                after=cursor,
-                collection_id=collection_id,
-                product_type=product_type,
-                vendor=vendor,
-                status=status,
-                query=search,
-            )
-
-            # Get total count for pagination (this may take a moment for large stores)
+            # Get total count first if needed for page validation
             total_count = None
             total_pages = None
             
@@ -78,9 +67,88 @@ class ShopifyProductService:
                     if total_count > 0 and limit > 0:
                         total_pages = (total_count + limit - 1) // limit  # Ceiling division
                         
+                        # If requesting a page beyond available pages, return empty result
+                        if page > total_pages:
+                            return {
+                                "products": [],
+                                "pagination": {
+                                    "page": page,
+                                    "limit": limit,
+                                    "total_count": total_count,
+                                    "total_pages": total_pages,
+                                    "has_next_page": False,
+                                    "has_previous_page": page > 1,
+                                    "next_cursor": None,
+                                    "previous_cursor": None,
+                                },
+                                "tenant_id": str(self.tenant.id),
+                            }
+                        
                 except Exception as count_error:
                     print(f"Error getting product count: {count_error}")
                     # Continue without count information
+
+            # Get products
+            # For page-based requests without cursor, we need to handle pagination properly
+            if page > 1 and not cursor:
+                # For pages beyond 1 without a cursor, we need to make sequential requests
+                # This is not ideal for performance but necessary for page-based pagination
+                current_cursor = None
+                current_page = 1
+                
+                # Navigate to the requested page
+                while current_page < page:
+                    page_result = await self.client.get_products_paginated(
+                        first=min(limit, 250),
+                        after=current_cursor,
+                        collection_id=collection_id,
+                        product_type=product_type,
+                        vendor=vendor,
+                        status=status,
+                        query=search,
+                    )
+                    
+                    # If there's no next page, we've reached the end
+                    if not page_result["page_info"]["has_next_page"]:
+                        return {
+                            "products": [],
+                            "pagination": {
+                                "page": page,
+                                "limit": limit,
+                                "total_count": total_count,
+                                "total_pages": total_pages,
+                                "has_next_page": False,
+                                "has_previous_page": page > 1,
+                                "next_cursor": None,
+                                "previous_cursor": None,
+                            },
+                            "tenant_id": str(self.tenant.id),
+                        }
+                    
+                    current_cursor = page_result["page_info"]["end_cursor"]
+                    current_page += 1
+                
+                # Now fetch the actual page we want
+                result = await self.client.get_products_paginated(
+                    first=min(limit, 250),
+                    after=current_cursor,
+                    collection_id=collection_id,
+                    product_type=product_type,
+                    vendor=vendor,
+                    status=status,
+                    query=search,
+                )
+            else:
+                # Page 1 or cursor-based request
+                result = await self.client.get_products_paginated(
+                    first=min(limit, 250),
+                    after=cursor,
+                    collection_id=collection_id,
+                    product_type=product_type,
+                    vendor=vendor,
+                    status=status,
+                    query=search,
+                )
 
             return {
                 "products": result["products"],
@@ -90,7 +158,7 @@ class ShopifyProductService:
                     "total_count": total_count,
                     "total_pages": total_pages,
                     "has_next_page": result["page_info"]["has_next_page"],
-                    "has_previous_page": result["page_info"]["has_previous_page"],
+                    "has_previous_page": page > 1,  # More accurate than Shopify's cursor-based flag
                     "next_cursor": result["page_info"]["end_cursor"],
                     "previous_cursor": result["page_info"]["start_cursor"],
                 },
