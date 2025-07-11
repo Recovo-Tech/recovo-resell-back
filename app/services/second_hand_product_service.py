@@ -404,7 +404,6 @@ class SecondHandProductService:
             else:
                 print("DEBUG: No weight data available, using default values")
 
-            # Use the proven productCreate mutation (most reliable approach)
             mutation = """
                 mutation productCreate($input: ProductInput!) {
                     productCreate(input: $input) {
@@ -442,7 +441,6 @@ class SecondHandProductService:
                 }
                 """
 
-            # Prepare product input using the proven ProductInput structure
             product_input = {
                 "title": f"{product.name} (Second-Hand)",
                 "descriptionHtml": enhanced_description,
@@ -582,11 +580,11 @@ class SecondHandProductService:
                     print("⚠️ WARNING: Failed to add product to Second Hand collection")
 
                 # Explicitly publish to online store
-                publish_success = await self._publish_to_online_store(
-                    client, shopify_product_id
-                )
-                if not publish_success:
-                    print("⚠️ WARNING: Failed to publish product to online store")
+                # publish_success = await self._publish_to_online_store(
+                #     client, shopify_product_id
+                # )
+                # if not publish_success:
+                #     print("⚠️ WARNING: Failed to publish product to online store")
 
                 return {
                     "success": True,
@@ -1059,94 +1057,6 @@ class SecondHandProductService:
             traceback.print_exc()
             return None
 
-    async def _publish_to_online_store(
-        self, client: ShopifyGraphQLClient, product_id: str
-    ) -> bool:
-        """Publish a product to the online store"""
-        try:
-            # First, get the online store publication ID
-            publications_query = """
-            query {
-                publications(first: 10) {
-                    edges {
-                        node {
-                            id
-                            name
-                        }
-                    }
-                }
-            }
-            """
-
-            publications_result = await client.execute_query(publications_query)
-            publications = (
-                publications_result.get("data", {})
-                .get("publications", {})
-                .get("edges", [])
-            )
-
-            # Find the online store publication
-            online_store_publication_id = None
-            for pub in publications:
-                if pub["node"]["name"] == "Online Store":
-                    online_store_publication_id = pub["node"]["id"]
-                    break
-
-            if not online_store_publication_id:
-                print("⚠️ WARNING: Online Store publication not found")
-                return False
-
-            # Publish the product to the online store
-            publish_mutation = """
-            mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) {
-                publishablePublish(id: $id, input: $input) {
-                    publishable {
-                        availablePublicationCount
-                        publicationCount
-                    }
-                    shop {
-                        publicationCount
-                    }
-                    userErrors {
-                        field
-                        message
-                    }
-                }
-            }
-            """
-
-            publish_variables = {
-                "id": product_id,
-                "input": [
-                    {
-                        "publicationId": online_store_publication_id,
-                        "publishDate": None,  # Publish immediately
-                    }
-                ],
-            }
-
-            publish_result = await client.execute_query(
-                publish_mutation, publish_variables
-            )
-
-            # Check for errors
-            if (
-                publish_result.get("data", {})
-                .get("publishablePublish", {})
-                .get("userErrors")
-            ):
-                errors = publish_result["data"]["publishablePublish"]["userErrors"]
-                print(f"⚠️ WARNING: Error publishing product to online store: {errors}")
-                return False
-
-            return True
-
-        except Exception as e:
-            print(f"⚠️ WARNING: Error publishing product to online store: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-            return False
 
     async def update_product_category(
         self, 
