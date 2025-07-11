@@ -26,6 +26,7 @@ async def test_subcategory_functionality():
             self.name = "Test Tenant"
             self.shopify_app_url = shopify_settings.shopify_app_url
             self.shopify_access_token = shopify_settings.shopify_access_token
+            self.shopify_api_version = "2024-01"
     
     tenant = MockTenant()
     
@@ -35,7 +36,7 @@ async def test_subcategory_functionality():
     try:
         # Test GraphQL client taxonomy methods
         print("\n1. Testing GraphQL Client - Enhanced Taxonomy Query...")
-        client = ShopifyGraphQLClient(tenant.shopify_app_url, tenant.shopify_access_token)
+        client = ShopifyGraphQLClient(tenant.shopify_app_url, tenant.shopify_access_token, tenant.shopify_api_version)
         
         # Test enhanced taxonomy query
         taxonomy_data = await client.get_taxonomy()

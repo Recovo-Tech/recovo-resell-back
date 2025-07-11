@@ -217,9 +217,11 @@ class ShopifyCacheService:
         # Create hash for long parameter strings
         if len(params_str) > 100:
             params_hash = hashlib.md5(params_str.encode()).hexdigest()
-            return f"shopify:{prefix}:{tenant_id}:{params_hash}"
+            key = f"shopify:{prefix}:{tenant_id}:{params_hash}"
+        else:
+            key = f"shopify:{prefix}:{tenant_id}:{params_str}"
         
-        return f"shopify:{prefix}:{tenant_id}:{params_str}"
+        return key
 
     async def get_product(self, tenant_id: str, product_id: str) -> Optional[Dict[str, Any]]:
         """Get cached product"""
@@ -363,3 +365,16 @@ def create_cache_service(
         raise ValueError(f"Unknown cache backend: {backend_type}")
     
     return ShopifyCacheService(backend, config)
+
+
+# Global cache service instance to share across requests
+_global_cache_service: Optional[ShopifyCacheService] = None
+
+
+def get_global_cache_service() -> ShopifyCacheService:
+    """Get or create global cache service instance"""
+    global _global_cache_service
+    if _global_cache_service is None:
+        _global_cache_service = create_cache_service("memory")
+        print("🌐 Created global cache service instance")
+    return _global_cache_service

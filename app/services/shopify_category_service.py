@@ -13,8 +13,13 @@ class ShopifyCategoryService:
         if not tenant.shopify_app_url or not tenant.shopify_access_token:
             raise ValueError("Tenant must have Shopify credentials configured")
 
+        # Use tenant's API version or default to 2024-01
+        api_version = tenant.shopify_api_version or "2024-01"
+
         self.client = ShopifyGraphQLClient(
-            tenant.shopify_app_url, tenant.shopify_access_token
+            shop_domain=tenant.shopify_app_url,
+            access_token=tenant.shopify_access_token,
+            api_version=api_version
         )
         self.tenant = tenant
 

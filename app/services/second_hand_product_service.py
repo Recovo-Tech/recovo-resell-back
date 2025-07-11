@@ -7,7 +7,6 @@ from fastapi import UploadFile
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.config.shopify_config import shopify_settings
 from app.models.product import SecondHandProduct, SecondHandProductImage
 from app.models.tenant import Tenant
 from app.models.user import User
@@ -36,8 +35,10 @@ class SecondHandProductService:
         image upload, and conditional automatic publishing.
         """
         upload_service = FileUploadService()
+        # Use tenant's API version or default to 2024-01
+        api_version = tenant.shopify_api_version or "2024-01"
         verification_service = ShopifyProductVerificationService(
-            tenant.shopify_app_url, tenant.shopify_access_token
+            tenant.shopify_app_url, tenant.shopify_access_token, api_version
         )
 
         created_product = None  # Initialize to None
@@ -264,8 +265,13 @@ class SecondHandProductService:
             # Load the tenant relationship
             tenant = product.tenant
             if tenant and tenant.shopify_app_url and tenant.shopify_access_token:
+                # Use tenant's API version or default to 2024-01
+                api_version = tenant.shopify_api_version or "2025-07"
+                
                 shopify_client = ShopifyGraphQLClient(
-                    tenant.shopify_app_url, tenant.shopify_access_token
+                    shop_domain=tenant.shopify_app_url,
+                    access_token=tenant.shopify_access_token,
+                    api_version=api_version
                 )
                 publish_result = await self._publish_to_shopify(shopify_client, product)
 
@@ -1170,8 +1176,13 @@ class SecondHandProductService:
             if product.shopify_product_id and product.tenant:
                 tenant = product.tenant
                 if tenant.shopify_app_url and tenant.shopify_access_token:
+                    # Use tenant's API version or default to 2024-01
+                    api_version = tenant.shopify_api_version or "2024-01"
+                    
                     shopify_client = ShopifyGraphQLClient(
-                        tenant.shopify_app_url, tenant.shopify_access_token
+                        shop_domain=tenant.shopify_app_url,
+                        access_token=tenant.shopify_access_token,
+                        api_version=api_version
                     )
                     
                     shopify_success = await self._update_shopify_product_category(
@@ -1275,8 +1286,13 @@ class SecondHandProductService:
                     "error_code": "SHOPIFY_NOT_CONFIGURED",
                 }
 
+            # Use tenant's API version or default to 2024-01
+            api_version = tenant.shopify_api_version or "2024-01"
+            
             shopify_client = ShopifyGraphQLClient(
-                tenant.shopify_app_url, tenant.shopify_access_token
+                shop_domain=tenant.shopify_app_url,
+                access_token=tenant.shopify_access_token,
+                api_version=api_version
             )
 
             # Build the update input for Shopify

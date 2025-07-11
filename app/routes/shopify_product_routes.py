@@ -80,6 +80,8 @@ async def list_products(
         if page > 10 and include_count:
             print(f"Warning: Requesting page {page} with count. Consider using cursor-based pagination for better performance.")
 
+        print(f"Fetching products: page={page}, limit={limit}, collection_id={collection_id}")
+
         result = await service.get_products(
             page=page,
             limit=limit,
@@ -92,29 +94,46 @@ async def list_products(
             include_count=include_count,
         )
 
-        # If collection_id is provided, ensure we only return products that belong to that specific collection
-        # This is a backup filter in case Shopify's GraphQL collection_id filter doesn't work properly
-        if collection_id:
-            original_count = len(result.get('products', []))
-            
-            # Clean the collection ID for comparison
+        # If collection_id was provided and we got results, the filtering should already be done by Shopify
+        # Only do backup filtering if we suspect Shopify's collection filter didn't work
+        if collection_id and result.get('products'):
+            # Check if any product doesn't belong to the collection (indicating Shopify filter failed)
             clean_collection_id = collection_id.replace("gid://shopify/Collection/", "")
+            needs_filtering = False
             
-            filtered_products = []
-            for product in result.get('products', []):
+            # Quick check: if any product doesn't have the collection, we need to filter
+            for product in result.get('products', [])[:5]:  # Check first 5 products only
                 product_collections = product.get('collections', [])
-                # Check if the product belongs to the requested collection
-                for collection in product_collections:
-                    if (collection.get('id') == clean_collection_id or 
-                        collection.get('id') == collection_id or
-                        collection.get('shopify_id') == collection_id):
-                        filtered_products.append(product)
-                        break  # Found the collection, no need to check others
+                belongs_to_collection = any(
+                    collection.get('id') == clean_collection_id or 
+                    collection.get('id') == collection_id or
+                    collection.get('shopify_id') == collection_id
+                    for collection in product_collections
+                )
+                if not belongs_to_collection:
+                    needs_filtering = True
+                    break
             
-            result['products'] = filtered_products
-            
-            # Log the filtering for debugging
-            print(f"Collection filter for '{collection_id}': {original_count} products -> {len(filtered_products)} products in collection")
+            if needs_filtering:
+                original_count = len(result.get('products', []))
+                
+                filtered_products = []
+                for product in result.get('products', []):
+                    product_collections = product.get('collections', [])
+                    # Check if the product belongs to the requested collection
+                    for collection in product_collections:
+                        if (collection.get('id') == clean_collection_id or 
+                            collection.get('id') == collection_id or
+                            collection.get('shopify_id') == collection_id):
+                            filtered_products.append(product)
+                            break  # Found the collection, no need to check others
+                
+                result['products'] = filtered_products
+                
+                # Log the filtering for debugging
+                print(f"Applied backup collection filter for '{collection_id}': {original_count} -> {len(filtered_products)} products")
+            else:
+                print(f"Shopify collection filter working correctly for '{collection_id}', no backup filtering needed")
 
         return ProductListResponse(**result)
 

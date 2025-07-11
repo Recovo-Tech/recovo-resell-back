@@ -37,8 +37,9 @@ async def test_color_verification():
         print(f"📋 Using tenant: {tenant.shopify_app_url}")
 
         # Create verification service
+        api_version = tenant.shopify_api_version or "2024-01"
         verification_service = ShopifyProductVerificationService(
-            tenant.shopify_app_url, tenant.shopify_access_token
+            tenant.shopify_app_url, tenant.shopify_access_token, api_version
         )
 
         # Test with SKU we know exists

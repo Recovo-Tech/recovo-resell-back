@@ -1,7 +1,6 @@
 # app/services/shopify_service.py
 from typing import Any, Dict, List, Optional
 import httpx
-from app.config.shopify_config import shopify_settings
 from app.exceptions import (
     ShopifyAPIException,
     ShopifyConnectionException,
@@ -18,13 +17,18 @@ from app.services.shopify_data_transformer import ShopifyDataTransformer
 class ShopifyGraphQLClient:
     """Shopify GraphQL API client for product verification and management"""
 
-    def __init__(self, shop_domain: str, access_token: Optional[str] = None):
+    def __init__(self, shop_domain: str, access_token: str, api_version: str = "2024-01"):
+        if not shop_domain:
+            raise ValueError("shop_domain is required")
+        if not access_token:
+            raise ValueError("access_token is required")
+        
         # Clean the domain by removing any existing protocol
         clean_domain = shop_domain.replace("https://", "").replace("http://", "")
 
-        self.shop_domain = clean_domain  # Store clean domain
-        self.access_token = access_token or shopify_settings.shopify_access_token
-        self.api_version = shopify_settings.shopify_api_version
+        self.shop_domain = clean_domain
+        self.access_token = access_token
+        self.api_version = api_version
 
         self.base_url = (
             f"https://{clean_domain}/admin/api/{self.api_version}/graphql.json"
@@ -975,8 +979,8 @@ class ShopifyGraphQLClient:
 class ShopifyProductVerificationService:
     """Service for verifying products against Shopify store inventory"""
 
-    def __init__(self, shop_domain: str, access_token: str):
-        self.client = ShopifyGraphQLClient(shop_domain, access_token)
+    def __init__(self, shop_domain: str, access_token: str, api_version: str = "2024-01"):
+        self.client = ShopifyGraphQLClient(shop_domain, access_token, api_version)
 
     async def verify_product_eligibility(
         self, sku: str = None, barcode: str = None

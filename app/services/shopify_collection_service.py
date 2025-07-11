@@ -4,23 +4,40 @@ from typing import Any, Dict, List, Optional
 
 from app.models.tenant import Tenant
 from app.services.shopify_service import ShopifyGraphQLClient
+from app.services.cache_service import ShopifyCacheService, get_global_cache_service
 
 
 class ShopifyCollectionService:
     """Service for managing Shopify collections"""
 
-    def __init__(self, tenant: Tenant):
+    def __init__(self, tenant: Tenant, cache_service: Optional[ShopifyCacheService] = None):
         if not tenant.shopify_app_url or not tenant.shopify_access_token:
             raise ValueError("Tenant must have Shopify credentials configured")
 
+        # Use tenant's API version or default to 2024-01
+        api_version = tenant.shopify_api_version or "2024-01"
+
         self.client = ShopifyGraphQLClient(
-            tenant.shopify_app_url, tenant.shopify_access_token
+            shop_domain=tenant.shopify_app_url,
+            access_token=tenant.shopify_access_token,
+            api_version=api_version
         )
         self.tenant = tenant
+        
+        # Initialize cache service - use global cache service for shared state
+        self.cache = cache_service or get_global_cache_service()
 
     async def get_collections(self) -> List[Dict[str, Any]]:
         """Get all collections from the tenant's Shopify store"""
         try:
+            # Try to get from cache first
+            cached_collections = await self.cache.get_collections(
+                tenant_id=str(self.tenant.id)
+            )
+            if cached_collections:
+                print(f"Cache hit for collections")
+                return cached_collections
+
             collections = await self.client.get_all_collections()
 
             # Transform the data to a more frontend-friendly format
@@ -45,6 +62,13 @@ class ShopifyCollectionService:
                 }
                 transformed_collections.append(transformed_collection)
 
+            # Cache the result
+            await self.cache.set_collections(
+                tenant_id=str(self.tenant.id),
+                collections_data=transformed_collections
+            )
+            print(f"Cached collections for tenant {self.tenant.id}")
+
             return transformed_collections
 
         except Exception as e:
@@ -56,6 +80,15 @@ class ShopifyCollectionService:
     ) -> Optional[Dict[str, Any]]:
         """Get a specific collection by its Shopify ID"""
         try:
+            # Try to get from cache first
+            cached_collection = await self.cache.get_collection(
+                tenant_id=str(self.tenant.id),
+                collection_id=collection_id
+            )
+            if cached_collection:
+                print(f"Cache hit for collection {collection_id}")
+                return cached_collection
+
             # Add the Shopify GID prefix if not present
             shopify_id = collection_id
             if not collection_id.startswith("gid://shopify/Collection/"):
@@ -145,6 +178,14 @@ class ShopifyCollectionService:
                         "image_url": image_url,
                     }
                 )
+
+            # Cache the result
+            await self.cache.set_collection(
+                tenant_id=str(self.tenant.id),
+                collection_id=collection_id,
+                collection_data=transformed_collection
+            )
+            print(f"Cached collection {collection_id} for tenant {self.tenant.id}")
 
             return transformed_collection
 
