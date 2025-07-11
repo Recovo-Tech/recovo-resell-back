@@ -7,15 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.config.db_config import get_db
-from app.config.shopify_config import shopify_settings
 from app.models.product import SecondHandProduct
+from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/webhooks/shopify", tags=["Shopify Webhooks"])
 
 
-def verify_webhook_signature(data: bytes, signature: str) -> bool:
-    """Verify Shopify webhook signature"""
-    if not signature:
+def verify_webhook_signature(data: bytes, signature: str, webhook_secret: str) -> bool:
+    """Verify Shopify webhook signature using tenant-specific secret"""
+    if not signature or not webhook_secret:
         return False
 
     # Remove 'sha256=' prefix if present
@@ -24,21 +24,47 @@ def verify_webhook_signature(data: bytes, signature: str) -> bool:
 
     # Calculate expected signature
     expected_signature = hmac.new(
-        shopify_settings.shopify_webhook_secret.encode("utf-8"), data, hashlib.sha256
+        webhook_secret.encode("utf-8"), data, hashlib.sha256
     ).hexdigest()
 
     return hmac.compare_digest(expected_signature, signature)
 
 
+def get_tenant_from_webhook(request: Request, db: Session) -> Tenant:
+    """Get tenant from webhook headers (shop domain)"""
+    shop_domain = request.headers.get("X-Shopify-Shop-Domain")
+    if not shop_domain:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing X-Shopify-Shop-Domain header"
+        )
+    
+    # Find tenant by shop domain
+    tenant = db.query(Tenant).filter(
+        Tenant.shopify_app_url.contains(shop_domain)
+    ).first()
+    
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found for shop domain"
+        )
+    
+    return tenant
+
+
 @router.post("/products/update")
 async def handle_product_update(request: Request, db: Session = Depends(get_db)):
     """Handle Shopify product update webhook"""
+    # Get tenant from webhook headers
+    tenant = get_tenant_from_webhook(request, db)
+    
     # Get raw body and signature
     body = await request.body()
     signature = request.headers.get("X-Shopify-Hmac-Sha256", "")
 
-    # Verify webhook signature
-    if not verify_webhook_signature(body, signature):
+    # Verify webhook signature using tenant-specific secret
+    if not verify_webhook_signature(body, signature, tenant.shopify_webhook_secret or ""):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="error.Invalid webhook signature",
@@ -123,12 +149,15 @@ async def handle_product_update(request: Request, db: Session = Depends(get_db))
 @router.post("/products/delete")
 async def handle_product_delete(request: Request, db: Session = Depends(get_db)):
     """Handle Shopify product deletion webhook"""
+    # Get tenant from webhook headers
+    tenant = get_tenant_from_webhook(request, db)
+    
     # Get raw body and signature
     body = await request.body()
     signature = request.headers.get("X-Shopify-Hmac-Sha256", "")
 
-    # Verify webhook signature
-    if not verify_webhook_signature(body, signature):
+    # Verify webhook signature using tenant-specific secret
+    if not verify_webhook_signature(body, signature, tenant.shopify_webhook_secret or ""):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="error.Invalid webhook signature",

@@ -11,13 +11,13 @@ from app.middleware.tenant_middleware import get_current_tenant
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.tenant import Tenant as TenantSchema
-from app.schemas.tenant import TenantCreate, TenantUpdate
+from app.schemas.tenant import TenantCreate, TenantUpdate, TenantResponse
 from app.services.tenant_service import TenantService
 
 router = APIRouter(prefix="/admin/tenants", tags=["Tenant Management"])
 
 
-@router.get("/", response_model=List[TenantSchema])
+@router.get("/", response_model=List[TenantResponse])
 async def get_all_tenants(
     skip: int = 0,
     limit: int = 100,
@@ -27,10 +27,11 @@ async def get_all_tenants(
     """Get all tenants (super admin only)"""
     # TODO: Add super admin check
     service = TenantService(db)
-    return service.get_all_tenants(skip, limit)
+    tenants = service.get_all_tenants(skip, limit)
+    return [TenantResponse.from_tenant(tenant) for tenant in tenants]
 
 
-@router.post("/", response_model=TenantSchema)
+@router.post("/", response_model=TenantResponse)
 async def create_tenant(
     tenant_data: TenantCreate,
     current_user: User = Depends(admin_required),
@@ -39,18 +40,19 @@ async def create_tenant(
     """Create a new tenant (super admin only)"""
     # TODO: Add super admin check
     service = TenantService(db)
-    return service.create_tenant(tenant_data)
+    tenant = service.create_tenant(tenant_data)
+    return TenantResponse.from_tenant(tenant)
 
 
-@router.get("/current", response_model=TenantSchema)
+@router.get("/current", response_model=TenantResponse)
 async def get_current_tenant_info(
     current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Get current tenant information"""
-    return current_tenant
+    return TenantResponse.from_tenant(current_tenant)
 
 
-@router.put("/current", response_model=TenantSchema)
+@router.put("/current", response_model=TenantResponse)
 async def update_current_tenant(
     update_data: TenantUpdate,
     current_user: User = Depends(admin_required),
@@ -66,10 +68,10 @@ async def update_current_tenant(
             status_code=status.HTTP_404_NOT_FOUND, detail="error.tenant_not_found"
         )
 
-    return updated_tenant
+    return TenantResponse.from_tenant(updated_tenant)
 
 
-@router.get("/{tenant_id}", response_model=TenantSchema)
+@router.get("/{tenant_id}", response_model=TenantResponse)
 async def get_tenant_by_id(
     tenant_id: str,
     current_user: User = Depends(admin_required),
@@ -85,10 +87,10 @@ async def get_tenant_by_id(
             status_code=status.HTTP_404_NOT_FOUND, detail="error.tenant_not_found"
         )
 
-    return tenant
+    return TenantResponse.from_tenant(tenant)
 
 
-@router.put("/{tenant_id}", response_model=TenantSchema)
+@router.put("/{tenant_id}", response_model=TenantResponse)
 async def update_tenant(
     tenant_id: str,
     update_data: TenantUpdate,
@@ -105,7 +107,7 @@ async def update_tenant(
             status_code=status.HTTP_404_NOT_FOUND, detail="error.tenant_not_found"
         )
 
-    return updated_tenant
+    return TenantResponse.from_tenant(updated_tenant)
 
 
 @router.delete("/{tenant_id}")

@@ -1,30 +1,83 @@
 # app/services/shopify_service.py
 from typing import Any, Dict, List, Optional
-
 import httpx
-
-from app.config.shopify_config import shopify_settings
+from app.exceptions import (
+    ShopifyAPIException,
+    ShopifyConnectionException,
+    ShopifyAuthenticationException,
+    ShopifyRateLimitException,
+    ProductNotFoundException,
+    CategoryNotFoundException
+)
+from app.services.shopify_query_builder import CommonQueries
+from app.services.retry_service import shopify_retry
+from app.services.shopify_data_transformer import ShopifyDataTransformer
 
 
 class ShopifyGraphQLClient:
     """Shopify GraphQL API client for product verification and management"""
 
-    def __init__(self, shop_domain: str, access_token: Optional[str] = None):
+    def __init__(self, shop_domain: str, access_token: str, api_version: str = "2024-01"):
+        if not shop_domain:
+            raise ValueError("shop_domain is required")
+        if not access_token:
+            raise ValueError("access_token is required")
+        
         # Clean the domain by removing any existing protocol
         clean_domain = shop_domain.replace("https://", "").replace("http://", "")
 
-        self.shop_domain = clean_domain  # Store clean domain
-        self.access_token = access_token or shopify_settings.shopify_access_token
-        self.api_version = shopify_settings.shopify_api_version
+        self.shop_domain = clean_domain
+        self.access_token = access_token
+        self.api_version = api_version
 
         self.base_url = (
             f"https://{clean_domain}/admin/api/{self.api_version}/graphql.json"
         )
+        
+        # Connection pooling - reuse HTTP client across requests
+        self._client: Optional[httpx.AsyncClient] = None
 
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create HTTP client with connection pooling"""
+        if self._client is None or self._client.is_closed:
+            # Configure connection limits and timeout for better performance
+            limits = httpx.Limits(
+                max_keepalive_connections=10,
+                max_connections=20,
+                keepalive_expiry=30.0
+            )
+            timeout = httpx.Timeout(
+                connect=10.0,
+                read=30.0,
+                write=10.0,
+                pool=5.0
+            )
+            self._client = httpx.AsyncClient(
+                limits=limits,
+                timeout=timeout,
+                follow_redirects=True
+            )
+        return self._client
+
+    async def close(self):
+        """Close HTTP client and cleanup resources"""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - cleanup resources"""
+        await self.close()
+
+    @shopify_retry("shopify_graphql_query")
     async def execute_query(
         self, query: str, variables: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Execute GraphQL query against Shopify API"""
+        """Execute GraphQL query against Shopify API with proper error handling"""
         headers = {
             "Content-Type": "application/json",
             "X-Shopify-Access-Token": self.access_token,
@@ -34,172 +87,139 @@ class ShopifyGraphQLClient:
         if variables:
             payload["variables"] = variables
 
-        async with httpx.AsyncClient() as client:
+        try:
+            client = await self._get_client()
             response = await client.post(
-                self.base_url, headers=headers, json=payload, timeout=30.0
+                self.base_url, headers=headers, json=payload
             )
-            response.raise_for_status()
-            return response.json()
+            
+            # Handle different HTTP status codes
+            if response.status_code == 401:
+                raise ShopifyAuthenticationException(
+                    "Invalid Shopify access token or authentication failed",
+                    details={"shop_domain": self.shop_domain}
+                )
+            elif response.status_code == 429:
+                retry_after = response.headers.get("Retry-After")
+                raise ShopifyRateLimitException(
+                    retry_after=int(retry_after) if retry_after else None,
+                    details={"shop_domain": self.shop_domain}
+                )
+            elif response.status_code >= 400:
+                response_data = response.json() if response.content else {}
+                raise ShopifyAPIException(
+                    f"Shopify API error: {response.status_code}",
+                    status_code=response.status_code,
+                    shopify_errors=response_data.get("errors", []),
+                    details={
+                        "shop_domain": self.shop_domain,
+                        "response_data": response_data
+                    }
+                )
+            
+            response_data = response.json()
+            
+            # Check for GraphQL errors
+            if "errors" in response_data:
+                error_messages = [error.get("message", "Unknown error") for error in response_data["errors"]]
+                raise ShopifyAPIException(
+                    f"GraphQL errors: {', '.join(error_messages)}",
+                    shopify_errors=response_data["errors"],
+                    details={"shop_domain": self.shop_domain}
+                )
+            
+            return response_data
+            
+        except httpx.TimeoutException as e:
+            raise ShopifyConnectionException(
+                "Request to Shopify API timed out",
+                details={"shop_domain": self.shop_domain},
+                original_error=e
+            )
+        except httpx.ConnectError as e:
+            raise ShopifyConnectionException(
+                "Failed to connect to Shopify API",
+                details={"shop_domain": self.shop_domain},
+                original_error=e
+            )
+        except httpx.HTTPStatusError as e:
+            raise ShopifyAPIException(
+                f"HTTP error: {e.response.status_code}",
+                status_code=e.response.status_code,
+                details={"shop_domain": self.shop_domain},
+                original_error=e
+            )
+        except Exception as e:
+            # Re-raise our custom exceptions
+            if isinstance(e, (ShopifyAPIException, ShopifyConnectionException, 
+                            ShopifyAuthenticationException, ShopifyRateLimitException)):
+                raise
+            # Wrap unexpected exceptions
+            raise ShopifyAPIException(
+                f"Unexpected error executing Shopify query: {str(e)}",
+                details={"shop_domain": self.shop_domain},
+                original_error=e
+            )
 
     async def verify_product_by_sku(self, sku: str) -> Optional[Dict[str, Any]]:
-        """Verify if a product exists in Shopify by SKU"""
-        query = """
-        query getProductBySku($query: String!) {
-            products(first: 1, query: $query) {
-                edges {
-                    node {
-                        id
-                        title
-                        handle
-                        description
-                        descriptionHtml
-                        status
-                        productType
-                        vendor
-                        options {
-                            id
-                            name
-                            values
-                            }
-                        images(first: 1) {
-                            edges {
-                                node {
-                                    id
-                                    url
-                                    altText
-                                }
-                            }
-                        }
-                        variants(first: 10) {
-                            edges {
-                                node {
-                                    id
-                                    sku
-                                    barcode
-                                    title
-                                    price
-                                    weight
-                                    weightUnit
-                                    selectedOptions {
-                                        name
-                                        value
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
+        """Verify if a product exists in Shopify by SKU using query builder"""
+        try:
+            query = CommonQueries.get_product_by_sku()
+            variables = {"query": f"sku:{sku}"}
+            result = await self.execute_query(query, variables)
 
-        variables = {"query": f"sku:{sku}"}
-        result = await self.execute_query(query, variables)
-
-        products = result.get("data", {}).get("products", {}).get("edges", [])
-        if products:
-            return products[0]["node"]
-        return None
+            products = result.get("data", {}).get("products", {}).get("edges", [])
+            if products:
+                return products[0]["node"]
+            return None
+        except Exception as e:
+            if isinstance(e, (ShopifyAPIException, ShopifyConnectionException, 
+                            ShopifyAuthenticationException, ShopifyRateLimitException)):
+                raise
+            raise ProductNotFoundException(
+                f"Failed to verify product with SKU {sku}",
+                details={"sku": sku},
+                original_error=e
+            )
 
     async def verify_product_by_barcode(self, barcode: str) -> Optional[Dict[str, Any]]:
-        """Verify if a product exists in Shopify by barcode"""
-        query = """
-        query getProductByBarcode($query: String!) {
-            products(first: 1, query: $query) {
-                edges {
-                    node {
-                        id
-                        title
-                        handle
-                        description
-                        descriptionHtml
-                        status
-                        productType
-                        vendor
-                        options {
-                            id
-                            name
-                            values
-                        }
-                        images(first: 1) {
-                            edges {
-                                node {
-                                    id
-                                    url
-                                    altText
-                                }
-                            }
-                        }
-                        variants(first: 10) {
-                            edges {
-                                node {
-                                    id
-                                    sku
-                                    barcode
-                                    title
-                                    price
-                                    weight
-                                    weightUnit
-                                    selectedOptions {
-                                        name
-                                        value
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
+        """Verify if a product exists in Shopify by barcode using query builder"""
+        try:
+            query = CommonQueries.get_product_by_sku()  # Same query structure, different search term
+            variables = {"query": f"barcode:{barcode}"}
+            result = await self.execute_query(query, variables)
 
-        variables = {"query": f"barcode:{barcode}"}
-        result = await self.execute_query(query, variables)
-
-        products = result.get("data", {}).get("products", {}).get("edges", [])
-        if products:
-            return products[0]["node"]
-        return None
+            products = result.get("data", {}).get("products", {}).get("edges", [])
+            if products:
+                return products[0]["node"]
+            return None
+        except Exception as e:
+            if isinstance(e, (ShopifyAPIException, ShopifyConnectionException, 
+                            ShopifyAuthenticationException, ShopifyRateLimitException)):
+                raise
+            raise ProductNotFoundException(
+                f"Failed to verify product with barcode {barcode}",
+                details={"barcode": barcode},
+                original_error=e
+            )
 
     async def get_product_by_id(self, product_id: str) -> Optional[Dict[str, Any]]:
-        """Get product details by Shopify product ID"""
-        query = """
-        query getProduct($id: ID!) {
-            product(id: $id) {
-                id
-                title
-                handle
-                description
-                status
-                images(first: 10) {
-                    edges {
-                        node {
-                            id
-                            url
-                            altText
-                        }
-                    }
-                }
-                variants(first: 10) {
-                    edges {
-                        node {
-                            id
-                            sku
-                            barcode
-                            title
-                            price
-                            inventoryQuantity
-                        }
-                    }
-                }
-            }
-        }
-        """
+        """Get product details by Shopify product ID using query builder"""
+        try:
+            query = CommonQueries.get_product_by_id()
+            variables = {"id": product_id}
+            result = await self.execute_query(query, variables)
 
-        variables = {"id": product_id}
-        result = await self.execute_query(query, variables)
-
-        return result.get("data", {}).get("product")
+            return result.get("data", {}).get("product")
+        except Exception as e:
+            if isinstance(e, (ShopifyAPIException, ShopifyConnectionException, 
+                            ShopifyAuthenticationException, ShopifyRateLimitException)):
+                raise
+            raise ProductNotFoundException(
+                f"Failed to get product with ID {product_id}",
+                details={"product_id": product_id},
+                original_error=e
+            )
 
     async def get_products_paginated(
         self,
@@ -268,77 +288,8 @@ class ShopifyGraphQLClient:
                 print(f"Error fetching from collection {collection_id}, falling back to general query: {e}")
                 # Fall back to general query without collection filter
                 collection_id = None
-        # Build the GraphQL query
-        graphql_query = """
-        query getProducts($first: Int!, $after: String, $query: String) {
-            products(first: $first, after: $after, query: $query) {
-                edges {
-                    node {
-                        id
-                        title
-                        handle
-                        description
-                        descriptionHtml
-                        status
-                        productType
-                        vendor
-                        tags
-                        createdAt
-                        updatedAt
-                        images(first: 5) {
-                            edges {
-                                node {
-                                    id
-                                    url
-                                    altText
-                                }
-                            }
-                        }
-                        variants(first: 10) {
-                            edges {
-                                node {
-                                    id
-                                    title
-                                    sku
-                                    barcode
-                                    price
-                                    compareAtPrice
-                                    weight
-                                    weightUnit
-                                    inventoryQuantity
-                                    availableForSale
-                                    selectedOptions {
-                                        name
-                                        value
-                                    }
-                                }
-                            }
-                        }
-                        collections(first: 10) {
-                            edges {
-                                node {
-                                    id
-                                    title
-                                    handle
-                                }
-                            }
-                        }
-                        options {
-                            id
-                            name
-                            values
-                        }
-                    }
-                }
-                pageInfo {
-                    hasNextPage
-                    hasPreviousPage
-                    startCursor
-                    endCursor
-                }
-            }
-        }
-        """
+        # Build the GraphQL query using query builder
+        graphql_query = CommonQueries.get_products_with_pagination()
 
         # Build query string for filtering
         query_parts = []
@@ -502,23 +453,13 @@ class ShopifyGraphQLClient:
         query: str = None,
     ) -> int:
         """
-        Get total count of products matching the given filters
+        Get total count of products matching the given filters using query builder
 
         Note: This makes a separate query to get the count, which is necessary
         because Shopify's GraphQL API doesn't provide total counts in paginated results
         """
-        # Build GraphQL query for counting
-        count_query = """
-        query getProductsCount($query: String) {
-            products(first: 1, query: $query) {
-                edges {
-                    node {
-                        id
-                    }
-                }
-            }
-        }
-        """
+        # Build GraphQL query for counting using query builder
+        count_query = CommonQueries.get_products_count()
 
         # Build query string for filtering (same logic as get_products_paginated)
         query_parts = []
@@ -567,22 +508,8 @@ class ShopifyGraphQLClient:
             current_page = 0
 
             while has_next_page and current_page < max_pages:
-                # Build the paginated query
-                paginated_query = """
-                query getProductsForCount($first: Int!, $after: String, $query: String) {
-                    products(first: $first, after: $after, query: $query) {
-                        edges {
-                            node {
-                                id
-                            }
-                        }
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                    }
-                }
-                """
+                # Build the paginated query using query builder
+                paginated_query = CommonQueries.get_products_for_count()
 
                 variables = {
                     "first": 250,
@@ -611,21 +538,9 @@ class ShopifyGraphQLClient:
             return 0
 
     async def get_product_filters(self) -> Dict[str, List[str]]:
-        """Get available filter options from the store by sampling products"""
+        """Get available filter options from the store by sampling products using query builder"""
         # First, get a sample of products to extract unique values
-        query = """
-        query getProductsForFilters($first: Int!) {
-            products(first: $first) {
-                edges {
-                    node {
-                        productType
-                        vendor
-                        tags
-                    }
-                }
-            }
-        }
-        """
+        query = CommonQueries.get_products_for_filters()
 
         try:
             # Get a larger sample to ensure we get comprehensive filter options
@@ -671,35 +586,8 @@ class ShopifyGraphQLClient:
             return {}
 
     async def get_all_collections(self) -> List[Dict[str, Any]]:
-        """Get all collections from Shopify"""
-        query = """
-        query getCollections($first: Int!, $after: String) {
-            collections(first: $first, after: $after) {
-                edges {
-                    node {
-                        id
-                        title
-                        handle
-                        description
-                        descriptionHtml
-                        image {
-                            url
-                            altText
-                        }
-                        productsCount {
-                            count
-                        }
-                        updatedAt
-                    }
-                    cursor
-                }
-                pageInfo {
-                    hasNextPage
-                    endCursor
-                }
-            }
-        }
-        """
+        """Get all collections from Shopify using query builder"""
+        query = CommonQueries.get_collections_with_pagination()
 
         all_collections = []
         has_next_page = True
@@ -742,49 +630,8 @@ class ShopifyGraphQLClient:
     async def get_collection_by_id(
         self, collection_id: str
     ) -> Optional[Dict[str, Any]]:
-        """Get a specific collection by ID with sample products"""
-        query = """
-        query getCollection($id: ID!) {
-            collection(id: $id) {
-                id
-                title
-                handle
-                description
-                descriptionHtml
-                image {
-                    url
-                    altText
-                }
-                productsCount {
-                    count
-                }
-                products(first: 10) {
-                    edges {
-                        node {
-                            id
-                            title
-                            handle
-                            priceRange {
-                                minVariantPrice {
-                                    amount
-                                    currencyCode
-                                }
-                            }
-                            images(first: 1) {
-                                edges {
-                                    node {
-                                        url
-                                        altText
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                updatedAt
-            }
-        }
-        """
+        """Get a specific collection by ID with sample products using query builder"""
+        query = CommonQueries.get_collection_by_id()
 
         variables = {"id": collection_id}
         result = await self.execute_query(query, variables)
@@ -836,41 +683,31 @@ class ShopifyGraphQLClient:
         return None
 
     async def get_taxonomy(self) -> Dict[str, Any]:
-        """Get Shopify's official product taxonomy/categories"""
-        query = """
-        query GetAllCategories {
-            taxonomy {
-                categories(first: 250) {
-                    nodes {
-                        id
-                        name
-                        fullName
-                        parentId
-                        level
-                        isLeaf
-                        childrenIds
-                    }
-                }
-            }
-        }
-        """
+        """Get Shopify's official product taxonomy/categories using query builder"""
+        query = CommonQueries.get_taxonomy()
 
         try:
+            print("Executing taxonomy query...")
             response = await self.execute_query(query)  # No variables needed
+            print(f"Taxonomy response: {response}")
             
             if "errors" in response:
                 print(f"GraphQL errors: {response['errors']}")
                 # Fallback to product sampling if taxonomy is not available
+                print("Falling back to product filters due to GraphQL errors...")
                 return await self.get_product_filters()
 
             taxonomy_data = response.get("data", {}).get("taxonomy", {})
+            print(f"Taxonomy data: {taxonomy_data}")
+            
             categories_connection = taxonomy_data.get("categories", {})
             categories_nodes = categories_connection.get("nodes", [])  # Changed from edges to nodes
+            print(f"Found {len(categories_nodes)} taxonomy categories")
 
             # Process taxonomy categories
             categories = []
             for category in categories_nodes:  # Direct iteration over nodes
-                categories.append({
+                category_data = {
                     "id": category.get("id"),
                     "name": category.get("name"),
                     "full_name": category.get("fullName", category.get("name")),  # Use fullName if available
@@ -879,8 +716,11 @@ class ShopifyGraphQLClient:
                     "level": category.get("level", 0),
                     "is_leaf": category.get("isLeaf", False),
                     "children_ids": category.get("childrenIds", []),
-                })
+                }
+                categories.append(category_data)
+                print(f"Processed category: {category_data}")
 
+            print(f"Returning {len(categories)} categories from taxonomy")
             return {
                 "categories": categories,
                 "total": len(categories)
@@ -893,24 +733,8 @@ class ShopifyGraphQLClient:
             return await self.get_product_filters()
 
     async def get_subcategories(self, parent_category_id: str) -> Dict[str, Any]:
-        """Get subcategories for a specific parent category using the childrenOf argument"""
-        query = """
-        query GetChildCategories($parentId: ID!) {
-            taxonomy {
-                categories(first: 250, childrenOf: $parentId) {
-                    nodes {
-                        id
-                        name
-                        fullName
-                        parentId
-                        level
-                        isLeaf
-                        childrenIds
-                    }
-                }
-            }
-        }
-        """
+        """Get subcategories for a specific parent category using the childrenOf argument and query builder"""
+        query = CommonQueries.get_subcategories()
         
         try:
             variables = {"parentId": parent_category_id}
@@ -1007,81 +831,7 @@ class ShopifyGraphQLClient:
         if not collection_id.startswith("gid://shopify/Collection/"):
             collection_id = f"gid://shopify/Collection/{collection_id}"
             
-        query = """
-        query getCollectionProducts($id: ID!, $first: Int!, $after: String) {
-            collection(id: $id) {
-                id
-                title
-                handle
-                products(first: $first, after: $after) {
-                    edges {
-                        node {
-                            id
-                            title
-                            handle
-                            description
-                            descriptionHtml
-                            status
-                            productType
-                            vendor
-                            tags
-                            createdAt
-                            updatedAt
-                            images(first: 5) {
-                                edges {
-                                    node {
-                                        id
-                                        url
-                                        altText
-                                    }
-                                }
-                            }
-                            variants(first: 10) {
-                                edges {
-                                    node {
-                                        id
-                                        title
-                                        sku
-                                        barcode
-                                        price
-                                        compareAtPrice
-                                        weight
-                                        weightUnit
-                                        inventoryQuantity
-                                        availableForSale
-                                        selectedOptions {
-                                            name
-                                            value
-                                        }
-                                    }
-                                }
-                            }
-                            collections(first: 10) {
-                                edges {
-                                    node {
-                                        id
-                                        title
-                                        handle
-                                    }
-                                }
-                            }
-                            options {
-                                id
-                                name
-                                values
-                            }
-                        }
-                    }
-                    pageInfo {
-                        hasNextPage
-                        hasPreviousPage
-                        startCursor
-                        endCursor
-                    }
-                }
-            }
-        }
-        """
+        query = CommonQueries.get_collection_products()
         
         variables = {
             "id": collection_id,
@@ -1229,8 +979,8 @@ class ShopifyGraphQLClient:
 class ShopifyProductVerificationService:
     """Service for verifying products against Shopify store inventory"""
 
-    def __init__(self, shop_domain: str, access_token: str):
-        self.client = ShopifyGraphQLClient(shop_domain, access_token)
+    def __init__(self, shop_domain: str, access_token: str, api_version: str = "2024-01"):
+        self.client = ShopifyGraphQLClient(shop_domain, access_token, api_version)
 
     async def verify_product_eligibility(
         self, sku: str = None, barcode: str = None

@@ -46,8 +46,10 @@ async def verify_product(
 
     # Use tenant-specific Shopify config
     try:
+        # Use tenant's API version or default to 2024-01
+        api_version = current_tenant.shopify_api_version or "2024-01"
         verification_service = ShopifyProductVerificationService(
-            current_tenant.shopify_app_url, current_tenant.shopify_access_token
+            current_tenant.shopify_app_url, current_tenant.shopify_access_token, api_version
         )
 
         result = await verification_service.verify_product_eligibility(
